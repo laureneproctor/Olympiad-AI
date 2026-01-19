@@ -1,0 +1,23 @@
+# Jupyter / Kaggle
+.ipynb_checkpoints/
+*.ipynb
+
+# Outputs/runs
+outputs/
+runs/
+logs/
+*.log
+
+# Model artifacts/checkpoints
+checkpoints/
+*.ckpt
+*.pt
+*.pth
+*.bin
+*.safetensors
+
+# Data
+data/
+*.csv
+*.parquet
+*.jsonl
