@@ -1,0 +1,27 @@
+id,problem
+svsu_level_i_01_solutions_01,(D) > ⇒ 5x +2> 4x +4 ⇒ x > 2. 3 3 1+ x
+svsu_level_i_01_solutions_02,(B) Multiplying numerator and denominator by x gives . −1+ x
+svsu_level_i_01_solutions_03,(B) 3yz3
+svsu_level_i_01_solutions_04,"(B) Since the interest is the amount times the rate, 250 = 5000r or r =1/ 20, which is 5%."
+svsu_level_i_01_solutions_05,"(A) Since it is with replacement, after the first ball is taken out and then put back in, all the balls are in the bag when the second is taken out. So, it is just 4/10."
+svsu_level_i_01_solutions_06,"(B) The angle vertical to the 40 shown is also 40, so x +40 =120as these are alternate interior angles."
+svsu_level_i_01_solutions_07,"(D) Using FOIL and i2 = −1, we have −6+4i−3i+2i2 = −6+i−2= −8+i."
+svsu_level_i_01_solutions_08,"(D) when (4,3) is reflected across the x-axis its image is P= (4,-3), and then the image of P = (4,-3) under a reflection aross the y- axis is (-4,-3). So, the sum is -7."
+svsu_level_i_01_solutions_09,(B) Visualizing the box shows B must be the base.
+svsu_level_i_01_solutions_10,"(D) Every cubic polynomial has 3 roots, call them a, b, and c (counting complex roots), and since the graph of the second equation is just the graph of the first shifted to the right 3 units, the roots of the second are a+3, b+3, and c+3. So the sum of the roots is a+b+c+9 = (-4) + 9=5."
+svsu_level_i_01_solutions_11,"(D) Since Angle-Angle-Angle is all that is known, any triangle similar to this one will have the same angle measures.  4 4  4y2 −4x2  −  x2 y2 x2y2 4(y− x)(y+ x)xy (y+ x) 30xy"
+svsu_level_i_01_solutions_12,"(D)   = = = , and multiplying this by gives 6.  20 20 20y−20x 20(y− x)x2y2 5xy x + y  −   x y  xy"
+svsu_level_i_01_solutions_13,"(B) Let x be the angle, then 90-x is the complement and 180-x is the supplement. The equation, then, is 90− x +180− x = 9x +6, or 11x = 264, which has solution x=24."
+svsu_level_i_01_solutions_14,"(D) Since AB=CD, BD and AC are parallel. So, the quadrilateral ABDC is an isosceles trapezoid, and the base angles of an isosceles trapezoid are congruent. (answers (a), (b) and (c) are properties of a parallelogram, rectangle, and rhombus, repectively. These do not follow from only the assumption that AB=CD.)"
+svsu_level_i_01_solutions_15,"(A) Let x be one of the 3 congruent angles at B and y one of the 3 congruent angles at C. Then3x +3y +30 =180, or 1 x+ y =50. We also know that 2x +2y +∠D =180, or x+ y =90− ∠D. Combining equations, then, 2 1 50 = 90− ∠D, which simplifies to ∠D = 80. 2"
+svsu_level_i_01_solutions_16,"(A) Let x be the distance traveled in miles. Then 25+0.25x = 70, or x =180."
+svsu_level_i_01_solutions_17,"(C) Let x and y be the two positive numbers. Then, (x + y)−(x − y)=12 gives y=6. If you write the difference as (x − y)−(x + y)=12, then y= -6, which is not possible since y must be positive."
+svsu_level_i_01_solutions_18,"(B) Let BD = d (altitude) and AD = x, then CD = 13 - x . Using the Pythagorean Theorem on the two smaller right triangles, x2 + d2 = 25 and d2 +(13− x)2 =144. Equating the expressions for d2 in each equation, we get C 25− x2 =144−(13− x)2 . Therefore, 25− x2 =144−169+26x − x2 , or 50 = 26x. Since, 13 x = 25/13 and x2 + d2 = 25, we have D 12 25(13)2 −252 25(132 −25) 25(144) 602 d2 = 25−(25/13)2 = = = = . So, d = 60/13. 132 132 132 132 A B 5"
+svsu_level_i_01_solutions_19,"(C) The two large semicircles have radius 5, so together make a circle of area 25π. The smaller circle has diameter 18-10 = 8, so its area is 16π. The shaded area is then 10(18)−25π−16π."
+svsu_level_i_01_solutions_20,"(C) The graph shows a total distance of 40 + 50 + 0 + 60 + 20 + 50 = 220, so the average speed is 220/6=36 2/3 mph."
+svsu_level_i_01_solutions_21,8
+svsu_level_i_01_solutions_22,"(D) The radius of a circle is one-half the diagonal of its inscribed square. So, half the side length of the largest square is , 2 which is the radius of the smaller circle, . Therefore, the side length of the smaller square is 8 ⋅ 2 =8. 2"
+svsu_level_i_01_solutions_23,"(C) Let x be the necessary calories to lose in the 20 days. A loss of 2400-1900=500 calories results in a loss rate of 1/7 of a pound 500 x per day ( 1 lb per week). To lose 20 lbs in 8 weeks (56 days), the rate of loss is 20/56=5/14 lb/day. Solving, = , we get 1 5 7 14 7⋅500⋅5=14x, or x =1250. Since they must lose 1250 calories, their intake must be 2400-1250=1150."
+svsu_level_i_01_solutions_24,"(D) Let w be the width of the shaded region. The area of the shaded region is xw and the area of the large rectangle is 2xy. The area of the two unshaded rectangles is 2(4x−w)x =8x2 −2xw. Therefore, 2xy−xw=8x2 −2xw. Solving, we get xw=8x2 −2xy."
+svsu_level_i_01_solutions_25,"(D) Let t be the time it takes copier B to complete the job. The rate of machine A is 1/3 job per hour, the rate of B is 1/t job per t t t hour, and the rate of them both working together is ½ job per hour. So, if they all work for t hours, + = , or 2t +6=3t, 3 t 2 after multiplying both sides by 6. Solving, we get t=6. 1 1 1"
+svsu_level_i_01_solutions_26,"(A) Since 12÷ = 24,3% =0.03, > ,0.2×0.4=0.08, none of these statements are true. 2 7 9"
