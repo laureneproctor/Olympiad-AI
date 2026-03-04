@@ -1,3 +1,0 @@
-"""
-Verifies Answer
-"""
