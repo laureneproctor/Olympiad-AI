@@ -1,0 +1,7 @@
+# Defines SFT run
+# - Model
+# - System Prompt
+# - LoRA params
+# - QL0RA settings
+# - SFT Params
+# - Output checkpoint directory (REVIEW)

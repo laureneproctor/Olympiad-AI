@@ -1,0 +1,7 @@
+# Define evaluation runs
+# - Which model to evaluate
+# - Which dataset split to evaluate on 
+# - Evaluation limit ( how many items)
+# - maj@N sample count
+# - Generation settings for evaluation
+# - Where to save the report

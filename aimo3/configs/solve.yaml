@@ -1,0 +1,5 @@
+# Defines final inference strategy
+# - Model checkpoint to use
+# - How many samples per problem
+# - Generation settings
+# - Output predictions file path (As kaggle submission???)

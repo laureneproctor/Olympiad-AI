@@ -1,0 +1,5 @@
+# Defines how to mine failures
+# - Which model checkpoint to mine with
+# - Generation settings
+# - Thresholds
+# - Output dataset path for rl_train

@@ -1,0 +1,7 @@
+Defines GRPO/RLVR training settings
+- Starting checkpoint
+- Group size, sampling params
+- Reward weight  (correct/ wrong/ no answer bonuses/ penalties)
+- KL coefficient
+- Steps / LR/ Batch Config
+- Which RL dataset to train on (rl_train)
