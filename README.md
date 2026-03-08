@@ -13,3 +13,45 @@ mine.py → build RL dataset from failures
 grpo.py → train RL model
 eval.py again → verify improvement
 solve.py → produce final predictions
+
+
+## Project Structure
+
+```
+Olympiad-AI/
+├── aimo3/
+│   ├── configs/
+│   │   ├── data.yaml
+│   │   ├── evaluate.yaml
+│   │   ├── grpo.yaml
+│   │   ├── mine.yaml
+│   │   ├── sft.yaml
+│   │   └── solve.yaml
+│   │
+│   ├── scripts/
+│   │   ├── __init__.py
+│   │   ├── evaluate.py
+│   │   ├── grpo.py
+│   │   ├── mine.py
+│   │   ├── prepare.py
+│   │   ├── sft.py
+│   │   └── solve.py
+│   │
+│   └── __init__.py
+│
+├── data/
+├── notebooks/
+│   ├── Baseline 1.ipynb
+│   ├── DSM_V2_for_Presentation.ipynb
+│   ├── Final SVSU Parser.ipynb
+│   ├── Olympiad-PDF-Scrape.ipynb
+│   ├── README.md
+│   ├── SVSU Parsing All.ipynb
+│   └── ec-pdf-parser.ipynb
+│
+├── pdf_data/
+│   └── raw_pdfs/
+│
+├── .gitignore
+└── README.md
+```
