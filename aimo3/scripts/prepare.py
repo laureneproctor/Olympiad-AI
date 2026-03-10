@@ -9,13 +9,19 @@
 # - data/prepared/test
 # - data/prepared/val
 
+
+# ---------------------------------------------------------------------------------------------------------
+### Load the dataset, set seed.
+# ---------------------------------------------------------------------------------------------------------
 from datasets import load_from_disk
 
 print("This file now works for Colab")
 SEED = 42
 DATASET_PATH = "/content/drive/MyDrive/Math Olympiad Competition/datasets/OpenMathReasoning_cot"
 
-
+# ---------------------------------------------------------------------------------------------------------
+### Define filtering function & apply to dataset.
+# ---------------------------------------------------------------------------------------------------------
 def filter_rows(row):
     return (
         row.get("problem_type") == "has_answer_extracted"
