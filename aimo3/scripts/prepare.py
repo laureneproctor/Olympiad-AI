@@ -67,36 +67,56 @@ def take_n_rows(filtered):
 # ---------------------------------------------------------------------------------------------------------
 ### Split into Train/Val/Test
 # ---------------------------------------------------------------------------------------------------------
+def split_train_val_test(row_selection):
+    from collections import defaultdict
+    from datasets import Dataset
 
+    print("Splitting into Train/Val/Test...")
 
-# ---------------------------------------------------------------------------------------------------------
-### Analyze duplicate structure
-# ---------------------------------------------------------------------------------------------------------
-def analyze_duplicates(filtered):
-    print("Analyzing duplicate structure...")
+    problem_groups = defaultdict(list)
 
-    problem_counter = Counter()
-    problem_reasoning_counter = Counter()
-
-    for row in filtered:
+    for row in row_selection:
         problem = row["problem"].strip()
-        reasoning = row["generated_solution"].strip()
+        problem_groups[problem].append(row)
 
-        problem_counter[problem] += 1
-        problem_reasoning_counter[(problem, reasoning)] += 1
+    unique_problems = list(problem_groups.keys())
 
-    total_rows = len(filtered)
-    num_unique_problems = len(problem_counter)
-    num_unique_problem_reasoning = len(problem_reasoning_counter)
+    import random
+    random.seed(SEED)
+    random.shuffle(unique_problems)
 
-    duplicate_problem_rows = sum(c - 1 for c in problem_counter.values() if c > 1)
-    duplicate_problem_reasoning_rows = sum(c - 1 for c in problem_reasoning_counter.values() if c > 1)
+    total_problems = len(unique_problems)
+    train_end = int(0.90 * total_problems)
+    val_end = train_end + int(0.05 * total_problems)
 
-    print("Total filtered rows:", total_rows)
-    print("Unique problems:", num_unique_problems)
-    print("Unique (problem, reasoning) pairs:", num_unique_problem_reasoning)
-    print("Rows belonging to repeated problems:", duplicate_problem_rows)
-    print("Exact duplicate (problem, reasoning) extra rows:", duplicate_problem_reasoning_rows)
-    print("Max repeats for one problem:", max(problem_counter.values()))
+    train_problems = unique_problems[:train_end]
+    val_problems = unique_problems[train_end:val_end]
+    test_problems = unique_problems[val_end:]
 
-    return problem_counter, problem_reasoning_counter
+    train_rows = []
+    val_rows = []
+    test_rows = []
+
+    for problem in train_problems:
+        train_rows.extend(problem_groups[problem])
+
+    for problem in val_problems:
+        val_rows.extend(problem_groups[problem])
+
+    for problem in test_problems:
+        test_rows.extend(problem_groups[problem])
+
+    ds_train_raw = Dataset.from_list(train_rows)
+    ds_val_raw = Dataset.from_list(val_rows)
+    ds_test_raw = Dataset.from_list(test_rows)
+
+    print("Unique problems total:", total_problems)
+    print("Train problems:", len(train_problems))
+    print("Val problems:", len(val_problems))
+    print("Test problems:", len(test_problems))
+
+    print("Train rows:", len(ds_train_raw))
+    print("Val rows:", len(ds_val_raw))
+    print("Test rows:", len(ds_test_raw))
+
+    return ds_train_raw, ds_val_raw, ds_test_raw
