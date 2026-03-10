@@ -15,6 +15,8 @@
 # ---------------------------------------------------------------------------------------------------------
 from datasets import load_from_disk
 from collections import Counter
+from collections import defaultdict
+from datasets import Dataset
 
 print("This file now works for Colab")
 SEED = 42
