@@ -100,15 +100,3 @@ def analyze_duplicates(filtered):
     print("Max repeats for one problem:", max(problem_counter.values()))
 
     return problem_counter, problem_reasoning_counter
-
-
-def main():
-    cot_data = load_data()
-    filtered = apply_filter(cot_data)
-    row_selection = take_n_rows(filtered)
-    problem_counter, problem_reasoning_counter = analyze_duplicates(filtered)
-    return cot_data, filtered, row_selection, problem_counter, problem_reasoning_counter
-
-
-if __name__ == "__main__":
-    main()
