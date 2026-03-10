@@ -9,4 +9,4 @@
 # - data/prepared/test
 # - data/prepared/val
 
-print("This file now works for Kaggle")
+print("This file now works for Colab")
