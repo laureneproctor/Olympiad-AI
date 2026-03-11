@@ -1,13 +1,13 @@
-# Input: prepared train/val splits from 00
-# - Format each row:
-#   - Prompt = system_prompt + problem + solution
-#   - Completion = gnerated_solution + final_answer: expected_answer
-# - Loads tokenizer + base model (4bit? Quant)
-# - Applied LoRA
+# Input: prepared train/val/test splits from step 00
+# - Formats each row for supervised fine-tuning (SFT)
+# - Prompt = SYSTEM_PROMPT + problem + "\n\nSolution:\n"
+# - Completion = generated_solution + "\nFINAL_ANSWER: expected_answer"
+# - Loads tokenizer and 4-bit quantized base model
+# - Applies LoRA for parameter-efficient fine-tuning
 # - Trains with SFTTrainer
-# - Saves model + tokenizer
-# Output
-# - out_deepseekmath7b_omr_lora_aimo3/ (Our SFT checkpoint)
+# - Saves model adapter weights and tokenizer
+# Output:
+# - out_deepseekmath7b_omr_lora_aimo3/ (SFT checkpoint)
 
 
 # ---------------------------------------------------------------------------------------------------------
@@ -47,7 +47,7 @@ def set_seeds(seed):
 # ---------------------------------------------------------------------------------------------------------
 ### Prompt formatting
 # ---------------------------------------------------------------------------------------------------------
-def convert_to_promp_format(example):
+def convert_to_prompt_format(example):
     problem = example["problem"].strip()
     reasoning = example["generated_solution"].strip()
     answer = str(example["expected_answer"]).strip()
@@ -73,7 +73,6 @@ def load_prepared_splits():
     print("Val rows:", len(ds_val_raw))
     print("Test rows:", len(ds_test_raw))
 
-
     return ds_train_raw, ds_val_raw, ds_test_raw
 
 # ---------------------------------------------------------------------------------------------------------
@@ -81,15 +80,104 @@ def load_prepared_splits():
 # ---------------------------------------------------------------------------------------------------------
 
 def format_sft_splits(ds_train_raw, ds_val_raw):
-    print("Formatting train/val splits for SFT...")
+    print("Formatting train/val splits for SFT")
 
     remove_cols = ds_train_raw.column_names
 
-    fmtd_train = ds_train_raw.map(convert_to_promp_format, remove_columns=remove_cols)
-    fmtd_val = ds_val_raw.map(convert_to_promp_format, remove_columns=remove_cols)
-
+    fmtd_train = ds_train_raw.map(convert_to_prompt_format, remove_columns=remove_cols)
+    fmtd_val = ds_val_raw.map(convert_to_prompt_format, remove_columns=remove_cols)
 
     print("Formatted train columns:", fmtd_train.column_names)
     print("Formatted val columns:", fmtd_val.column_names)
 
     return fmtd_train , fmtd_val
+
+# ---------------------------------------------------------------------------------------------------------
+### Load tokenizer + model
+# ---------------------------------------------------------------------------------------------------------
+
+def load_tokenizer():
+    tok = AutoTokenizer.from_pretrained( CURRENT_MODEL, use_fast=True, trust_remote_code=True)
+    if tok.pad_token is None:
+        tok.pad_token = tok.eos_token
+    tok.padding_side = "right"
+    return tok
+
+def load_model():
+    bnb_config = BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_quant_type="nf4",
+        bnb_4bit_use_double_quant=True,
+        bnb_4bit_compute_dtype=torch.bfloat16,
+    )
+    model = AutoModelForCausalLM.from_pretrained(
+        CURRENT_MODEL,
+        quantization_config=bnb_config,
+        device_map="auto",
+        trust_remote_code=True,
+    )
+    return model
+# ---------------------------------------------------------------------------------------------------------
+### Build LoRA config for SFTTrainer
+# ---------------------------------------------------------------------------------------------------------
+
+def build_peft_config():
+    return LoraConfig(
+        r=16,
+        lora_alpha=32,
+        lora_dropout=0.05,
+        bias="none",
+        task_type="CAUSAL_LM",
+        target_modules=[
+            "q_proj", "k_proj", "v_proj", "o_proj",
+            "gate_proj", "up_proj", "down_proj"
+        ],
+    )
+
+def build_sft_config():
+    return SFTConfig(
+        output_dir=OUT_DIRECTORY,
+        max_length=2048,
+        per_device_train_batch_size=1,
+        gradient_accumulation_steps=8,
+        num_train_epochs=1,
+        learning_rate=5e-5,
+        warmup_steps=50,
+        logging_steps=10,
+        save_steps=200,
+        save_total_limit=1,
+        bf16=True,
+        report_to=[],
+    )
+# ---------------------------------------------------------------------------------------------------------
+### Main training function
+# ---------------------------------------------------------------------------------------------------------
+
+def train_model():
+    set_seeds(SEED)
+
+    ds_train_raw, ds_val_raw, ds_test_raw = load_prepared_splits()
+    ds_train, ds_val = format_sft_splits(ds_train_raw, ds_val_raw)
+
+    tok = load_tokenizer()
+    model = load_model()
+    peft_config = build_peft_config()
+    sft_config = build_sft_config()
+
+    model.tokenizer = tok
+
+    trainer = SFTTrainer(
+        model=model,
+        args=sft_config,
+        train_dataset=ds_train,
+        peft_config=peft_config,
+    )
+
+    print("Training starting...")
+    trainer.train()
+
+    print("Saving model + tokenizer...")
+    trainer.save_model(sft_config.output_dir)
+    tok.save_pretrained(sft_config.output_dir)
+
+    print("Done. Saved to:", sft_config.output_dir)
