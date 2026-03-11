@@ -56,9 +56,15 @@ def convert_to_prompt_format(example):
         SYSTEM_PROMPT
         + "\n\nProblem:\n"
         + problem
-        + "\n\nSolution:\n"
+        + "\n\nSolution:"
     )
-    completion = reasoning.rstrip() + "\nFINAL_ANSWER: " + answer
+
+    completion = (
+        "\n"
+        + reasoning.rstrip()
+        + "\nFINAL_ANSWER: "
+        + answer
+    )
 
     return {
         "prompt": prompt,
