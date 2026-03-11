@@ -125,6 +125,8 @@ def split_train_val_test(row_selection, split_config, seed):
     return ds_train_raw, ds_val_raw, ds_test_raw
 
 def save_splits(ds_train_raw, ds_val_raw, ds_test_raw):
+    from datasets import DatasetDict
+
     print("Saving Train/Val/Test splits")
 
     prepared = DatasetDict({
@@ -135,28 +137,3 @@ def save_splits(ds_train_raw, ds_val_raw, ds_test_raw):
 
     prepared.save_to_disk("/content/drive/MyDrive/Math Olympiad Competition/processed_splits/omr_aimo3/hf")
     print("Saved prepared splits to: /content/drive/MyDrive/Math Olympiad Competition/processed_splits/omr_aimo3/hf")
-    
-def run_exp(config):
-    dataset_path = config["dataset_path"]
-    SEED = config["seed"]
-    N = config["N"]
-    split_config = config["split"]
-
-    cot_data = load_data(dataset_path)
-    filtered = apply_filter(cot_data, config)
-    row_selection = take_n_rows(filtered, N, SEED)
-    ds_train_raw, ds_val_raw, ds_test_raw = split_train_val_test(row_selection, split_config, SEED)
-
-def main():
-    config = load_yaml("./configs/data.yaml")
-
-    experiments = config["experiments"]
-    cot_data = load_data(config["dataset"]["path"])
-    filtered_data = apply_filter(cot_data, config["dataset"]["filtering"])
-
-    for exp_name, exp_config in experiments.items():
-        run_exp(exp_name, exp_config, filtered_data)
-
-
-if __name__ == "__main__":
-    main()
