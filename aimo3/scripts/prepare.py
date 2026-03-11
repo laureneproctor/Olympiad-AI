@@ -122,3 +122,17 @@ def split_train_val_test(row_selection):
     print("Test rows:", len(ds_test_raw))
 
     return ds_train_raw, ds_val_raw, ds_test_raw
+
+def save_splits(ds_train_raw, ds_val_raw, ds_test_raw):
+    from datasets import DatasetDict
+
+    print("Saving Train/Val/Test splits")
+
+    prepared = DatasetDict({
+        "train": ds_train_raw,
+        "val": ds_val_raw,
+        "test": ds_test_raw,
+    })
+
+    prepared.save_to_disk("/content/drive/MyDrive/Math Olympiad Competition/processed_splits/omr_aimo3/hf")
+    print("Saved prepared splits to: /content/drive/MyDrive/Math Olympiad Competition/processed_splits/omr_aimo3/hf")
