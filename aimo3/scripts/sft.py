@@ -173,10 +173,10 @@ def train_model():
         peft_config=peft_config,
     )
 
-    print("Training starting...")
+    print("Starting training")
     trainer.train()
 
-    print("Saving model + tokenizer...")
+    print("Saving model + tokenizer")
     trainer.save_model(sft_config.output_dir)
     tok.save_pretrained(sft_config.output_dir)
 
