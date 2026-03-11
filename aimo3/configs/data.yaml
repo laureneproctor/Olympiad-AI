@@ -1,6 +1,62 @@
 # Dataset purpose: how to filter, split, and pre-process it.
 # - Dataset path
-# - filtering 
-# - Seed
-# - N for testing/ runs
-# - Train/ Test/ Val split
+dataset:
+  path : "/content/drive/MyDrive/Math Olympiad Competition/datasets/OpenMathReasoning_cot"
+  
+  # - filtering
+  filtering:
+    problem_type: "has_answer_extracted"
+    Non_nulls:
+      - expected_answer
+      - generated_solution
+      - problem
+
+experiments:
+  exp1:
+    # - Seed
+    seed: 42
+
+    # - N for testing/ runs
+    N: 100
+
+    # - Train/ Test/ Val split
+    splits:
+      train: 0.8
+      val: 0.1
+      test: 0.1
+  exp2:
+    # - Seed
+    seed: 42
+
+    # - N for testing/ runs
+    N: 1000
+
+    # - Train/ Test/ Val split
+    splits:
+      train: 0.8
+      val: 0.1
+      test: 0.1
+  exp3:
+    # - Seed
+    seed: 42
+
+    # - N for testing/ runs
+    N: 10000
+
+    # - Train/ Test/ Val split
+    splits:
+      train: 0.8
+      val: 0.1
+      test: 0.1
+  exp4:
+    # - Seed
+    seed: 42
+
+    # - N for testing/ runs
+    N: 100000
+
+    # - Train/ Test/ Val split
+    splits:
+      train: 0.8
+      val: 0.1
+      test: 0.1
