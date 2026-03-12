@@ -146,7 +146,7 @@ def run_exp(config):
     row_selection = take_n_rows(filtered, N, SEED)
     ds_train_raw, ds_val_raw, ds_test_raw = split_train_val_test(row_selection, split_config, SEED)
 
-def main():
+""" def main():
     config = load_yaml("./configs/data.yaml")
 
     experiments = config["experiments"]
@@ -158,4 +158,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main() """
