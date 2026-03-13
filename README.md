@@ -78,16 +78,15 @@ solve.py → Competition predictions
 
 2. prepare.py:
 This script prepares the raw dataset into a clean and reusable format for training and evaluation. It loads the OpenMathReasoning dataset, removes incomplete or invalid entries, and normalizes the answers into integer strings within the range [0, 99999].
-It also formats the prompts so that each training example contains the problem statement followed by a reasoning trace that ends with:
-- FINAL_ANSWER: <integer>
+It also formats the prompts so that each training example contains the problem statement followed by a reasoning trace that ends with: FINAL_ANSWER: arrows(integer)
 The script then creates dataset splits for supervised training, validation, evaluation, and RL mining, and saves the processed datasets to disk.
 
-3. sft.py:
+4. sft.py:
 This script performs Supervised Fine-Tuning (SFT) on the prepared dataset. The base model used is deepseek-ai/deepseek-math-7b-instruct, which is fine-tuned using 4-bit quantization and LoRA adapters for efficient training.
 The objective of this stage is to teach the model to understand olympiad-style math problems, generate step-by-step reasoning, and consistently output a correctly formatted final answer.
 The resulting model is saved as the baseline SFT checkpoint.
 
-4. eval.py (Baseline Evaluation):
+5. eval.py (Baseline Evaluation):
 After SFT training, the model is evaluated on a held-out evaluation set.
 This stage measures baseline performance using metrics such as:
 
