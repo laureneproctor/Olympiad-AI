@@ -79,9 +79,7 @@ solve.py → Competition predictions
 2. prepare.py:
 This script prepares the raw dataset into a clean and reusable format for training and evaluation. It loads the OpenMathReasoning dataset, removes incomplete or invalid entries, and normalizes the answers into integer strings within the range [0, 99999].
 It also formats the prompts so that each training example contains the problem statement followed by a reasoning trace that ends with:
-```
-FINAL_ANSWER: <integer>
-```
+- FINAL_ANSWER: <integer>
 The script then creates dataset splits for supervised training, validation, evaluation, and RL mining, and saves the processed datasets to disk.
 
 3. sft.py:
