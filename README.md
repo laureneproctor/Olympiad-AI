@@ -1,18 +1,9 @@
 ## Olympiad-AI
 Building a system that parses LaTeX- formatted math problems and uses a model to solve math olympiad-level questions.
+
 ## Time-line
 
 <img width="777" height="285" alt="Screenshot 2026-03-12 at 9 05 05 AM" src="https://github.com/user-attachments/assets/82d3410b-ad45-4f0c-a27a-6424b5032000" />
-
-## Current Routine for Running
-
-- `prepare.py` once
-- `sft.py` → get baseline SFT model
-- `eval.py` → measure pass@1 and maj@N
-- `mine.py` → build RL dataset from failures
-- `grpo.py` → train RL model
-- `eval.py` again → verify improvement
-- `solve.py` → produce final predictions
 
 ## Project Structure
 
@@ -110,13 +101,12 @@ These metrics establish a baseline before applying reinforcement learning.
 
 5. mine.py:
 This script mines useful training examples for reinforcement learning.
-The baseline SFT model is run on a set of held-out problems, generating multiple sampled solutions for each problem.
+The baseline SFT model is run on a held-out set of problems, generating multiple sampled solutions for each.
 The script then identifies cases where the model:
 - produces incorrect answers
 - generates inconsistent outputs
 - fails to follow the expected answer format
 - occasionally finds the correct answer but inconsistently
-
 These failure cases provide valuable learning signals and are saved as RL training data.
 
 6. grpo.py:
@@ -125,12 +115,11 @@ The model generates multiple candidate solutions for each prompt, and a reward s
 - correctness of the final answer
 - valid output formatting
 - reasoning quality
-
 Unlike SFT, which imitates existing solutions, GRPO allows the model to explore different reasoning paths and reinforce those that lead to correct answers.
 The resulting model is saved as the GRPO-trained checkpoint.
 
 7. eval.py (Post-RL Evaluation):
-The evaluation script is run again on the GRPO-trained model to measure improvements.
+The evaluation script is rerun on the GRPO-trained model to quantify improvements.
 Metrics from this stage are compared with the baseline SFT results to determine whether reinforcement learning improves accuracy, consistency, and formatting reliability.
 
 8. solve.py:
