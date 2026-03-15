@@ -11,6 +11,7 @@
 
 from collections import defaultdict
 from datasets import load_from_disk, Dataset, DatasetDict
+from pathlib import Path
 import os
 import random
 import yaml
@@ -25,7 +26,8 @@ def load_data(dataset_path):
     print("Loaded:", len(cot_data), "rows")
     print("Columns:", cot_data.column_names)
     return cot_data
-
+def get_data_config_path():
+    return Path(__file__).resolve().parents[1] / "configs" / "data.yaml"
 # --------------------------------------------------------------------------------
 # Filtering
 # --------------------------------------------------------------------------------
