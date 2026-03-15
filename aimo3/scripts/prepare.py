@@ -16,7 +16,13 @@ import os
 import random
 import yaml
 
-def load_yaml(config_path):
+def get_data_config_path():
+    return Path(__file__).resolve().parents[1] / "configs" / "data.yaml"
+
+def load_yaml(config_path=None):
+    if config_path is None:
+        config_path = get_data_config_path()
+
     with open(config_path, "r") as f:
         return yaml.safe_load(f)
 
@@ -26,21 +32,20 @@ def load_data(dataset_path):
     print("Loaded:", len(cot_data), "rows")
     print("Columns:", cot_data.column_names)
     return cot_data
-def get_data_config_path():
-    return Path(__file__).resolve().parents[1] / "configs" / "data.yaml"
+
 # --------------------------------------------------------------------------------
 # Filtering
 # --------------------------------------------------------------------------------
 def filter_rows(row, filtering_config):
-    # Exact-match filters except non-null fields
+    non_null_cols = filtering_config.get("Non_nulls", filtering_config.get("non_null_columns", []))
+
     for key, value in filtering_config.items():
-        if key == "Non_nulls":
+        if key in ["Non_nulls", "non_null_columns"]:
             continue
         if key not in row or row[key] != value:
             return False
 
-    # Non-null / non-empty checks
-    for col in filtering_config.get("Non_nulls", []):
+    for col in non_null_cols:
         if col not in row:
             return False
         if row[col] is None:
@@ -94,7 +99,6 @@ def split_train_val_test(row_selection, split_config, seed):
 
     train_frac = split_config["train"]
     val_frac = split_config["val"]
-    test_frac = split_config["test"]
 
     train_end = int(train_frac * total_problems)
     val_end = train_end + int(val_frac * total_problems)
@@ -165,7 +169,6 @@ def run_exp(full_config, exp_name, save_root):
     row_selection = take_n_rows(filtered, n, seed)
     ds_train_raw, ds_val_raw, ds_test_raw = split_train_val_test(row_selection, split_config, seed)
 
-    # save into: save_root/splits/{N}
     save_dir = os.path.join(save_root, "splits", str(n))
     save_splits(ds_train_raw, ds_val_raw, ds_test_raw, save_dir)
 
