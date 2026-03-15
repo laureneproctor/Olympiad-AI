@@ -1,62 +1,82 @@
-# Dataset purpose: how to filter, split, and pre-process it.
-# - Dataset path
 dataset:
-  path : "/content/drive/MyDrive/Math Olympiad Competition/datasets/OpenMathReasoning_cot"
-  
-  # - filtering
+  path: "/content/drive/MyDrive/Math Olympiad Competition/datasets/OpenMathReasoning_cot"
   filtering:
     problem_type: "has_answer_extracted"
-    Non_nulls:
+    non_null_columns:
       - expected_answer
       - generated_solution
       - problem
 
+models:
+  qwen:
+    name: "Qwen/Qwen2.5-7B-Instruct"
+    tokenizer_name: "Qwen/Qwen2.5-7B-Instruct"
+    provider: "huggingface"
+    family: "Qwen"
+    dtype: "bfloat16"
+    device: "cuda"
+    generation:
+      max_input_length: 4096
+      max_output_length: 1024
+      temperature: 0.7
+      top_p: 0.9
+      do_sample: true
+
+  deepseekmath:
+    name: "deepseek-ai/deepseek-math-7b-instruct"
+    tokenizer_name: "deepseek-ai/deepseek-math-7b-instruct"
+    provider: "huggingface"
+    family: "DeepSeekMath"
+    dtype: "bfloat16"
+    device: "cuda"
+    generation:
+      max_input_length: 4096
+      max_output_length: 1024
+      temperature: 0.7
+      top_p: 0.9
+      do_sample: true
+
 experiments:
   exp1:
-    # - Seed
     seed: 42
-
-    # - N for testing/ runs
     N: 100
-
-    # - Train/ Test/ Val split
     splits:
       train: 0.8
       val: 0.1
       test: 0.1
+    models:
+      - qwen
+      - deepseekmath
+
   exp2:
-    # - Seed
     seed: 42
-
-    # - N for testing/ runs
     N: 1000
-
-    # - Train/ Test/ Val split
     splits:
       train: 0.8
       val: 0.1
       test: 0.1
+    models:
+      - qwen
+      - deepseekmath
+
   exp3:
-    # - Seed
     seed: 42
-
-    # - N for testing/ runs
     N: 10000
-
-    # - Train/ Test/ Val split
     splits:
       train: 0.8
       val: 0.1
       test: 0.1
+    models:
+      - qwen
+      - deepseekmath
+
   exp4:
-    # - Seed
     seed: 42
-
-    # - N for testing/ runs
     N: 100000
-
-    # - Train/ Test/ Val split
     splits:
       train: 0.8
       val: 0.1
       test: 0.1
+    models:
+      - qwen
+      - deepseekmath
