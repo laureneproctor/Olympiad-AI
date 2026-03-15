@@ -37,15 +37,13 @@ def load_data(dataset_path):
 # Filtering
 # --------------------------------------------------------------------------------
 def filter_rows(row, filtering_config):
-    non_null_cols = filtering_config.get("Non_nulls", filtering_config.get("non_null_columns", []))
-
     for key, value in filtering_config.items():
-        if key in ["Non_nulls", "non_null_columns"]:
+        if key == "Non_nulls":
             continue
         if key not in row or row[key] != value:
             return False
 
-    for col in non_null_cols:
+    for col in filtering_config.get("Non_nulls", []):
         if col not in row:
             return False
         if row[col] is None:
