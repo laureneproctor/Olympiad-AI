@@ -40,21 +40,19 @@ def filter_rows(row, filtering_config):
     for key, value in filtering_config.items():
         if key == "non_null_columns":
             continue
-        if key not in row or row[key] != value:
+        if row.get(key) != value:
             return False
-
     for col in filtering_config.get("non_null_columns", []):
-        if col not in row:
+        val = row.get(col)
+        if val is None:
             return False
-        if row[col] is None:
-            return False
-        if isinstance(row[col], str) and row[col].strip() == "":
+        if isinstance(val, str) and not val.strip():
             return False
 
     return True
 
 def apply_filter(cot_data, filtering_config):
-    print("Applying filters...")
+    print("Applying filters")
     print("Filtering config:", filtering_config)
     filtered = cot_data.filter(lambda row: filter_rows(row, filtering_config))
     print("Filtered size:", len(filtered))
