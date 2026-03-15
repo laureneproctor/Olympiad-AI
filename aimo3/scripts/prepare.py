@@ -38,12 +38,12 @@ def load_data(dataset_path):
 # --------------------------------------------------------------------------------
 def filter_rows(row, filtering_config):
     for key, value in filtering_config.items():
-        if key == "Non_nulls":
+        if key == "non_null_columns":
             continue
         if key not in row or row[key] != value:
             return False
 
-    for col in filtering_config.get("Non_nulls", []):
+    for col in filtering_config.get("non_null_columns", []):
         if col not in row:
             return False
         if row[col] is None:
@@ -55,6 +55,7 @@ def filter_rows(row, filtering_config):
 
 def apply_filter(cot_data, filtering_config):
     print("Applying filters...")
+    print("Filtering config:", filtering_config)
     filtered = cot_data.filter(lambda row: filter_rows(row, filtering_config))
     print("Filtered size:", len(filtered))
     return filtered
@@ -138,6 +139,9 @@ def split_train_val_test(row_selection, split_config, seed):
 # --------------------------------------------------------------------------------
 def save_splits(ds_train_raw, ds_val_raw, ds_test_raw, save_dir):
     print("Saving Train/Val/Test splits...")
+
+    if len(ds_train_raw) == 0 and len(ds_val_raw) == 0 and len(ds_test_raw) == 0:
+        raise ValueError("All splits are empty. Check filtering and sampling before saving.")
 
     prepared = DatasetDict({
         "train": ds_train_raw,
