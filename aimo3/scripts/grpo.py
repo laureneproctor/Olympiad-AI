@@ -7,4 +7,3 @@
 #       - apply KL penalty to stay close to the SFT model
 # Output:
 # - checkpoints/grpo_model/ (your RL-tuned checkpoint)
-print("Hello!")

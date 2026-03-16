@@ -1,25 +1,12 @@
-# Input: prepared train/val/test splits from step 00
-# - Formats each row for supervised fine-tuning (SFT)
-# - Prompt = SYSTEM_PROMPT + problem + "\n\nSolution:"
-# - Completion = generated_solution + "\nFINAL_ANSWER: expected_answer"
-# - Loads tokenizer and 4-bit quantized base model
-# - Applies LoRA for parameter-efficient fine-tuning
-# - Trains with SFTTrainer
-# - Saves model adapter weights and tokenizer
-# Output:
-# - output_dir/ (SFT checkpoint)
-
 import os
 import random
 from pathlib import Path
-
 import torch
 import yaml
 from datasets import load_from_disk
 from peft import LoraConfig, prepare_model_for_kbit_training
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 from trl import SFTConfig, SFTTrainer
-
 
 # ------------------------------------------------------------------------------
 # Path helpers
@@ -238,28 +225,20 @@ def maybe_get_quantization_config(quantization_yaml):
 
 def load_model(model_config, quantization_yaml):
     model_name = model_config["name"]
-
     quantization_config = maybe_get_quantization_config(quantization_yaml)
-
-    model_kwargs = {
-        "trust_remote_code": True,
-    }
-
+    model_kwargs = {"trust_remote_code": True,
+                    }
     if quantization_config is not None:
         model_kwargs["quantization_config"] = quantization_config
         model_kwargs["device_map"] = "auto"
-
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
         **model_kwargs,
     )
-
     if quantization_config is not None:
         model = prepare_model_for_kbit_training(model)
-
     model.config.use_cache = False
     return model
-
 
 # ------------------------------------------------------------------------------
 # LoRA
