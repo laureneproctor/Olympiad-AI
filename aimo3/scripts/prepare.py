@@ -54,7 +54,15 @@ def filter_rows(row, filtering_config):
 def apply_filter(cot_data, filtering_config):
     print("Applying filters")
     print("Filtering config:", filtering_config)
-    filtered = cot_data.filter(lambda row: filter_rows(row, filtering_config))
+    print("First row passes filter:", filter_rows(cot_data[0], filtering_config))
+
+    filtered = cot_data.filter(
+        filter_rows,
+        fn_kwargs={"filtering_config": filtering_config},
+        load_from_cache_file=False,
+        desc="Filtering rows"
+    )
+
     print("Filtered size:", len(filtered))
     return filtered
 
