@@ -126,24 +126,18 @@ def convert_to_prompt_format(example, system_prompt):
     reasoning = str(example["generated_solution"]).strip()
     answer = str(example["expected_answer"]).strip()
 
-    prompt = (
+    text = (
         system_prompt
         + "\n\nProblem:\n"
         + problem
-        + "\n\nSolution:"
-    )
-
-    completion = (
-        "\n"
-        + reasoning.rstrip()
+        + "\n\nSolution:\n"
+        + reasoning
         + "\nFINAL_ANSWER: "
         + answer
     )
 
     return {
-        "prompt": prompt,
-        "completion": completion,
-        "text": prompt + completion,
+        "text": text,
         "expected_answer": answer,
     }
 
