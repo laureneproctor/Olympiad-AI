@@ -6,39 +6,29 @@
 # - Generation settings for evaluation
 # - Where to save the report
 
-
 run:
   seed: 42
 
 paths:
-  data_config_path: null  # uses default if null
-  model_checkpoint: "/path/to/trained/model"
-  dataset_path: "/path/to/prepared/splits"
-  output_dir: "runs/evaluation"
+  data_config_path: null
+  sft_config_path: "/content/Olympiad-AI/aimo3/configs/sft.yaml"
+  model_checkpoint: "/content/drive/MyDrive/Math Olympiad Competition/models/sft_deepseekmath_exp1"
+  dataset_path: "/content/drive/MyDrive/Math Olympiad Competition/processed_splits/omr_aimo3/splits/100"
+  output_dir: "/content/drive/MyDrive/Math Olympiad Competition/runs/evaluation"
 
 evaluation:
-  # Dataset split to evaluate on: train, val, or test
   split: "test"
-  
-  # Max number of items to evaluate (null = evaluate all)
-  max_items: 100
-  
-  # Pass@1 evaluation (greedy decoding)
+  max_items: null
   eval_pass1: true
   pass1_max_new_tokens: 512
-  
-  # Maj@N evaluation (sampling + majority vote)
   eval_majn: true
   majn_n_samples: 8
-  majn_max_items: 50  # evaluate fewer items for maj@N (more expensive)
+  majn_max_items: 10
   majn_max_new_tokens: 512
   majn_temperature: 0.7
   majn_top_p: 0.95
 
 reporting:
-  # Save report JSON
   save_report: true
   report_filename: "evaluation_report.json"
-  
-  # Print detailed stats
   verbose: true
