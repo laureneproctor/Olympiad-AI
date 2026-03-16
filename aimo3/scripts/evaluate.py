@@ -6,14 +6,102 @@
 # Output:
 # - printed metrics + optional runs/report.json
 
-
+import json
+import os
 import re
 from collections import Counter
+from pathlib import Path
 from typing import Optional, List, Tuple, Dict
 
 import torch
-from datasets import Dataset
+import yaml
+from datasets import Dataset, load_from_disk
 from transformers import AutoTokenizer, AutoModelForCausalLM
+
+try:
+    from peft import AutoPeftModelForCausalLM
+except ImportError:
+    AutoPeftModelForCausalLM = None
+
+
+# ---------------------------
+# Path helpers
+# ---------------------------
+
+def get_repo_root():
+    return Path(__file__).resolve().parents[1]
+
+
+def get_evaluate_config_path():
+    return get_repo_root() / "configs" / "evaluate.yaml"
+
+
+def get_data_config_path():
+    return get_repo_root() / "configs" / "data.yaml"
+
+
+def get_sft_config_path():
+    return get_repo_root() / "configs" / "sft.yaml"
+
+
+# ---------------------------
+# YAML loading
+# ---------------------------
+
+def load_yaml(config_path):
+    config_path = Path(config_path)
+    with open(config_path, "r") as f:
+        return yaml.safe_load(f)
+
+
+def load_configs(evaluate_config_path=None):
+    if evaluate_config_path is None:
+        evaluate_config_path = get_evaluate_config_path()
+
+    evaluate_config = load_yaml(evaluate_config_path)
+
+    data_config_path = evaluate_config.get("paths", {}).get("data_config_path")
+    if not data_config_path:
+        data_config_path = get_data_config_path()
+    data_config = load_yaml(data_config_path)
+
+    sft_config_path = evaluate_config.get("paths", {}).get("sft_config_path")
+    if not sft_config_path:
+        sft_config_path = get_sft_config_path()
+    sft_config = load_yaml(sft_config_path)
+
+    exp_name = sft_config["run"]["experiment_name"]
+    model_key = sft_config["run"]["model_key"]
+    exp_config = data_config["experiments"][exp_name]
+    model_config = data_config["models"][model_key]
+
+    dataset_path = evaluate_config.get("paths", {}).get("dataset_path")
+    if not dataset_path:
+        dataset_path = os.path.join(
+            sft_config["paths"]["prepared_splits_root"],
+            "splits",
+            str(exp_config["N"]),
+        )
+
+    model_checkpoint = evaluate_config.get("paths", {}).get("model_checkpoint")
+    if not model_checkpoint:
+        model_checkpoint = os.path.join(
+            sft_config["paths"]["output_root"],
+            f"sft_{model_key}_{exp_name}",
+        )
+
+    output_dir = evaluate_config.get("paths", {}).get("output_dir", "runs/evaluation")
+
+    return (
+        evaluate_config,
+        data_config,
+        sft_config,
+        exp_config,
+        model_config,
+        dataset_path,
+        model_checkpoint,
+        output_dir,
+    )
 
 
 # ---------------------------
@@ -45,7 +133,7 @@ def normalize_to_int_str(ans: Optional[str]) -> Optional[str]:
     if not s.isdigit():
         return None
 
-    s = str(int(s))  # canonicalize leading zeros
+    s = str(int(s))
     v = int(s)
     if not (0 <= v <= 99999):
         return None
@@ -83,15 +171,93 @@ def extract_answer(text: str) -> Optional[str]:
 
 
 # ---------------------------
+# Prompt formatting
+# ---------------------------
+
+def build_eval_prompt(
+    example,
+    system_prompt: str,
+    problem_field: str = "problem",
+    answer_field: str = "expected_answer",
+):
+    problem = str(example[problem_field]).strip()
+    answer = str(example[answer_field]).strip()
+
+    prompt = (
+        system_prompt
+        + "\n\nProblem:\n"
+        + problem
+        + "\n\nSolution:\n"
+    )
+
+    return {
+        "prompt": prompt,
+        "expected_answer": answer,
+    }
+
+
+def format_eval_split(
+    ds_split: Dataset,
+    system_prompt: str,
+    problem_field: str = "problem",
+    answer_field: str = "expected_answer",
+) -> Dataset:
+    """
+    Converts a raw prepared split into the columns expected by evaluation.
+    """
+    return ds_split.map(
+        build_eval_prompt,
+        fn_kwargs={
+            "system_prompt": system_prompt,
+            "problem_field": problem_field,
+            "answer_field": answer_field,
+        },
+        remove_columns=ds_split.column_names,
+        desc="Formatting eval split",
+    )
+
+
+def load_eval_split(dataset_path: str, split_name: str) -> Dataset:
+    """
+    Supports:
+      - a DatasetDict saved with train/val/test
+      - a Dataset saved directly
+    """
+    print("Loading evaluation dataset from:", dataset_path)
+    ds = load_from_disk(dataset_path)
+
+    if hasattr(ds, "keys"):
+        if split_name not in ds:
+            raise ValueError(f"Split '{split_name}' not found in dataset at {dataset_path}")
+        split_ds = ds[split_name]
+    else:
+        split_ds = ds
+
+    print("Loaded eval rows:", len(split_ds))
+    print("Columns:", split_ds.column_names)
+    return split_ds
+
+
+# ---------------------------
 # Model loading
 # ---------------------------
+
+def get_inference_dtype():
+    if torch.cuda.is_available():
+        if torch.cuda.is_bf16_supported():
+            return torch.bfloat16
+        return torch.float16
+    return torch.float32
+
 
 def load_eval_model(
     model_path: str,
     trust_remote_code: bool = True,
 ):
     """
-    Loads tokenizer + causal LM from a saved model directory or HF model id.
+    Loads tokenizer + model from:
+      - a PEFT/LoRA adapter directory, or
+      - a full HF model directory.
     """
     tok = AutoTokenizer.from_pretrained(
         model_path,
@@ -102,13 +268,27 @@ def load_eval_model(
         tok.pad_token = tok.eos_token
     tok.padding_side = "right"
 
+    model_kwargs = {
+        "device_map": "auto",
+        "torch_dtype": get_inference_dtype(),
+        "trust_remote_code": trust_remote_code,
+    }
+
+    if AutoPeftModelForCausalLM is not None:
+        try:
+            model = AutoPeftModelForCausalLM.from_pretrained(
+                model_path,
+                **model_kwargs,
+            )
+            return tok, model
+        except Exception as e:
+            print("PEFT load failed, falling back to AutoModelForCausalLM:")
+            print(str(e))
+
     model = AutoModelForCausalLM.from_pretrained(
         model_path,
-        device_map="auto",
-        torch_dtype=torch.bfloat16 if torch.cuda.is_available() else torch.float16,
-        trust_remote_code=trust_remote_code,
+        **model_kwargs,
     )
-
     return tok, model
 
 
@@ -212,11 +392,17 @@ def solve_pass1(
 # Evaluation functions
 # ---------------------------
 
+def resolve_total(max_items, ds_len: int) -> int:
+    if max_items is None:
+        return ds_len
+    return min(max_items, ds_len)
+
+
 def eval_split_pass1(
     model,
     tokenizer,
     ds_split: Dataset,
-    max_items: int = 100,
+    max_items: Optional[int] = 100,
     max_new_tokens: int = 512,
 ) -> Dict[str, float]:
     """
@@ -224,7 +410,7 @@ def eval_split_pass1(
     """
     correct = 0
     valid = 0
-    total = min(max_items, len(ds_split))
+    total = resolve_total(max_items, len(ds_split))
 
     for i in range(total):
         pred, is_valid, _ = solve_pass1(
@@ -252,7 +438,7 @@ def eval_split_majN(
     tokenizer,
     ds_split: Dataset,
     n_samples: int = 8,
-    max_items: int = 50,
+    max_items: Optional[int] = 50,
     max_new_tokens: int = 512,
     temperature: float = 0.7,
     top_p: float = 0.95,
@@ -266,7 +452,7 @@ def eval_split_majN(
     total_valid_votes = 0
     total_votes = 0
 
-    total = min(max_items, len(ds_split))
+    total = resolve_total(max_items, len(ds_split))
 
     for i in range(total):
         prompt = ds_split[i]["prompt"]
@@ -282,7 +468,7 @@ def eval_split_majN(
             top_p=top_p,
         )
 
-        best, counts, extracted_norm, agreement = majority_vote_answer(generations)
+        best, _counts, extracted_norm, agreement = majority_vote_answer(generations)
 
         if len(extracted_norm) > 0:
             problems_with_any_valid += 1
@@ -307,3 +493,97 @@ def eval_split_majN(
         "avg_agreement_rate": avg_agreement,
         "n": total,
     }
+
+
+# ---------------------------
+# Main runner
+# ---------------------------
+
+def run_evaluation(evaluate_config_path=None):
+    (
+        evaluate_config,
+        data_config,
+        sft_config,
+        exp_config,
+        model_config,
+        dataset_path,
+        model_checkpoint,
+        output_dir,
+    ) = load_configs(evaluate_config_path=evaluate_config_path)
+
+    eval_yaml = evaluate_config.get("evaluation", {})
+    reporting_yaml = evaluate_config.get("reporting", {})
+    data_yaml = sft_config.get("data", {})
+
+    split_name = eval_yaml.get("split", "test")
+    system_prompt = (
+        evaluate_config.get("prompting", {}).get("system_prompt")
+        or sft_config["prompting"]["system_prompt"]
+    )
+    problem_field = data_yaml.get("problem_field", "problem")
+    answer_field = data_yaml.get("answer_field", "expected_answer")
+
+    print("Experiment:", sft_config["run"]["experiment_name"])
+    print("Model key:", sft_config["run"]["model_key"])
+    print("Model name:", model_config["name"])
+    print("Dataset path:", dataset_path)
+    print("Checkpoint:", model_checkpoint)
+    print("Eval split:", split_name)
+
+    ds_raw = load_eval_split(dataset_path, split_name)
+    ds_eval = format_eval_split(
+        ds_split=ds_raw,
+        system_prompt=system_prompt,
+        problem_field=problem_field,
+        answer_field=answer_field,
+    )
+
+    tokenizer, model = load_eval_model(model_checkpoint)
+
+    results = {
+        "metadata": {
+            "experiment_name": sft_config["run"]["experiment_name"],
+            "model_key": sft_config["run"]["model_key"],
+            "model_name": model_config["name"],
+            "checkpoint": model_checkpoint,
+            "dataset_path": dataset_path,
+            "split": split_name,
+            "n_dataset_rows": len(ds_eval),
+        }
+    }
+
+    if eval_yaml.get("eval_pass1", True):
+        print("Running pass@1 evaluation...")
+        results["pass1"] = eval_split_pass1(
+            model=model,
+            tokenizer=tokenizer,
+            ds_split=ds_eval,
+            max_items=eval_yaml.get("max_items", 100),
+            max_new_tokens=eval_yaml.get("pass1_max_new_tokens", 512),
+        )
+
+    if eval_yaml.get("eval_majn", True):
+        print("Running maj@N evaluation...")
+        results["majn"] = eval_split_majN(
+            model=model,
+            tokenizer=tokenizer,
+            ds_split=ds_eval,
+            n_samples=eval_yaml.get("majn_n_samples", 8),
+            max_items=eval_yaml.get("majn_max_items", 50),
+            max_new_tokens=eval_yaml.get("majn_max_new_tokens", 512),
+            temperature=eval_yaml.get("majn_temperature", 0.7),
+            top_p=eval_yaml.get("majn_top_p", 0.95),
+        )
+
+    if reporting_yaml.get("verbose", True):
+        print(json.dumps(results, indent=2))
+
+    if reporting_yaml.get("save_report", False):
+        os.makedirs(output_dir, exist_ok=True)
+        report_filename = reporting_yaml.get("report_filename", "evaluation_report.json")
+        report_path = os.path.join(output_dir, report_filename)
+        with open(report_path, "w") as f:
+            json.dump(results, f, indent=2)
+        print("Saved evaluation report to:", report_path)
+
+    return results
