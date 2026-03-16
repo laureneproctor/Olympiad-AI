@@ -422,15 +422,14 @@ def train_model(sft_config_path=None):
     )
 
     trainer = SFTTrainer(
-        model=model,
-        args=sft_trainer_config,
-        train_dataset=ds_train,
-        eval_dataset=ds_val,
-        processing_class=tok,
-        peft_config=peft_config,
-        dataset_text_field=sft_config.get("data", {}).get("text_field", "text"),
+    model=model,
+    args=sft_trainer_config,
+    train_dataset=ds_train,
+    eval_dataset=ds_val,
+    processing_class=tok,
+    peft_config=peft_config,
     )
-
+    
     print_trainable_parameters(trainer.model)
 
     print("Starting training")
