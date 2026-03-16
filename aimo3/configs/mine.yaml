@@ -3,3 +3,39 @@
 # - Generation settings
 # - Thresholds
 # - Output dataset path for rl_train
+
+run:
+  seed: 42
+
+paths:
+  data_config_path: null  # uses default if null
+  model_checkpoint: "/path/to/trained/model"
+  dataset_path: "/path/to/prepared/splits"
+  dataset_split: "test"  # which split to mine from (train/val/test)
+  output_path: "/path/to/rl_train_dataset"
+
+generation:
+  k_solutions: 8  # number of solutions to sample per problem
+  max_new_tokens: 512
+  temperature: 0.7
+  top_p: 0.95
+
+# Thresholds for what counts as a "failure" to mine
+failure_criteria:
+  # Mine if majority vote is wrong
+  mine_if_majority_wrong: true
+  
+  # Mine if agreement rate is below threshold (even if majority is correct)
+  mine_if_low_agreement: true
+  low_agreement_threshold: 0.5  # agreement rate < 50%
+  
+  # Mine if format validity is below threshold
+  mine_if_low_format_validity: true
+  low_format_validity_threshold: 0.5  # < 50% have valid extracted answers
+  
+  # Mine if no valid answer extracted from any solution
+  mine_if_no_valid_extraction: true
+
+reporting:
+  save_mining_report: true
+  report_path: "runs/mining_report.json"
