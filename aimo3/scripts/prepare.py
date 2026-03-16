@@ -51,9 +51,10 @@ def filter_rows(row, filtering_config):
 
     return True
 
-def apply_filter(cot_data, config):
-    filtered = cot_data.filter(lambda row: filter_rows(row, config))
-    return filtered
+def apply_filter(cot_data, filtering_config):
+    print("Applying filters")
+    print("Filtering config:", filtering_config)
+    print("First row passes filter:", filter_rows(cot_data[0], filtering_config))
 
     filtered = cot_data.filter(
         filter_rows,
@@ -68,9 +69,13 @@ def apply_filter(cot_data, config):
 # --------------------------------------------------------------------------------
 # Take N rows
 # --------------------------------------------------------------------------------
-def take_n_rows(filtered, n, SEED):
-    print(f"Taking {n} rows...")
-    row_selection = filtered.shuffle(seed=SEED).select(range(n))
+def take_n_rows(filtered, n, seed):
+    print(f"Taking up to {n} rows...")
+    shuffled = filtered.shuffle(seed=seed)
+
+    n = min(n, len(shuffled))
+    row_selection = shuffled.select(range(n))
+
     print("Selected size:", len(row_selection))
     return row_selection
 
