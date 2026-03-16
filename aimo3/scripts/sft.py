@@ -1,6 +1,6 @@
 # Input: prepared train/val/test splits from step 00
 # - Formats each row for supervised fine-tuning (SFT)
-# - Prompt = SYSTEM_PROMPT + problem + "\n\nSolution:\n"
+# - Prompt = SYSTEM_PROMPT + problem + "\n\nSolution:"
 # - Completion = generated_solution + "\nFINAL_ANSWER: expected_answer"
 # - Loads tokenizer and 4-bit quantized base model
 # - Applies LoRA for parameter-efficient fine-tuning
@@ -9,35 +9,61 @@
 # Output:
 # - output_dir/ (SFT checkpoint)
 
-# ---------------------------------------------------------------------------------------------------------
-### Imports for the script
-# ---------------------------------------------------------------------------------------------------------
 import os
 import random
+from pathlib import Path
 
 import torch
 import yaml
 from datasets import load_from_disk
 from peft import LoraConfig, prepare_model_for_kbit_training
-from trl import SFTTrainer, SFTConfig
-from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
+from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+from trl import SFTConfig, SFTTrainer
 
-# ---------------------------------------------------------------------------------------------------------
-### Config paths
-# ---------------------------------------------------------------------------------------------------------
-SFT_CONFIG_PATH = "/content/drive/MyDrive/Math Olympiad Competition/configs/sft.yaml"
 
+# ------------------------------------------------------------------------------
+# Path helpers
+# ------------------------------------------------------------------------------
+def get_repo_root():
+    """
+    Assumes this file lives somewhere like:
+      repo/src/sft.py
+    so parents[1] is the repo root.
+    """
+    return Path(__file__).resolve().parents[1]
+
+
+def get_sft_config_path():
+    return get_repo_root() / "configs" / "sft.yaml"
+
+
+def get_data_config_path():
+    return get_repo_root() / "configs" / "data.yaml"
+
+
+# ------------------------------------------------------------------------------
+# YAML loading
+# ------------------------------------------------------------------------------
 def load_yaml(config_path):
+    config_path = Path(config_path)
     with open(config_path, "r") as f:
         return yaml.safe_load(f)
 
-# ---------------------------------------------------------------------------------------------------------
-### Load configs and resolve selected run
-# ---------------------------------------------------------------------------------------------------------
-def load_configs(sft_config_path=SFT_CONFIG_PATH):
+
+# ------------------------------------------------------------------------------
+# Config loading
+# ------------------------------------------------------------------------------
+def load_configs(sft_config_path=None):
+    if sft_config_path is None:
+        sft_config_path = get_sft_config_path()
+
     sft_config = load_yaml(sft_config_path)
 
-    data_config_path = sft_config["paths"]["data_config_path"]
+    # Allow null in sft.yaml and fall back to repo/configs/data.yaml
+    data_config_path = sft_config.get("paths", {}).get("data_config_path")
+    if not data_config_path:
+        data_config_path = get_data_config_path()
+
     data_config = load_yaml(data_config_path)
 
     exp_name = sft_config["run"]["experiment_name"]
@@ -60,6 +86,7 @@ def load_configs(sft_config_path=SFT_CONFIG_PATH):
         )
 
     n = exp_config["N"]
+
     prepared_data_path = os.path.join(
         sft_config["paths"]["prepared_splits_root"],
         "splits",
@@ -71,23 +98,32 @@ def load_configs(sft_config_path=SFT_CONFIG_PATH):
         f"sft_{model_key}_{exp_name}",
     )
 
-    return sft_config, data_config, exp_config, model_config, prepared_data_path, output_directory
+    return (
+        sft_config,
+        data_config,
+        exp_config,
+        model_config,
+        prepared_data_path,
+        output_directory,
+    )
 
-# ---------------------------------------------------------------------------------------------------------
-### Set seed function
-# ---------------------------------------------------------------------------------------------------------
+
+# ------------------------------------------------------------------------------
+# Seed
+# ------------------------------------------------------------------------------
 def set_seeds(seed):
     random.seed(seed)
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
 
-# ---------------------------------------------------------------------------------------------------------
-### Prompt formatting
-# ---------------------------------------------------------------------------------------------------------
+
+# ------------------------------------------------------------------------------
+# Prompt formatting
+# ------------------------------------------------------------------------------
 def convert_to_prompt_format(example, system_prompt):
-    problem = example["problem"].strip()
-    reasoning = example["generated_solution"].strip()
+    problem = str(example["problem"]).strip()
+    reasoning = str(example["generated_solution"]).strip()
     answer = str(example["expected_answer"]).strip()
 
     prompt = (
@@ -111,12 +147,19 @@ def convert_to_prompt_format(example, system_prompt):
         "expected_answer": answer,
     }
 
-# ---------------------------------------------------------------------------------------------------------
-### Load splits from drive
-# ---------------------------------------------------------------------------------------------------------
+
+# ------------------------------------------------------------------------------
+# Load prepared splits
+# ------------------------------------------------------------------------------
 def load_prepared_splits(prepared_data_path):
-    print("Loading processed Train/Val/Test splits from drive")
+    print("Loading processed Train/Val/Test splits")
     print("Prepared path:", prepared_data_path)
+
+    if not os.path.exists(prepared_data_path):
+        raise FileNotFoundError(
+            f"Prepared splits not found at: {prepared_data_path}\n"
+            "Check prepared_splits_root in sft.yaml and confirm prepare.py already ran."
+        )
 
     prepared = load_from_disk(prepared_data_path)
 
@@ -130,9 +173,10 @@ def load_prepared_splits(prepared_data_path):
 
     return ds_train_raw, ds_val_raw, ds_test_raw
 
-# ---------------------------------------------------------------------------------------------------------
-### Format train/val splits to SFT prompt-completion format
-# ---------------------------------------------------------------------------------------------------------
+
+# ------------------------------------------------------------------------------
+# Format splits
+# ------------------------------------------------------------------------------
 def format_sft_splits(ds_train_raw, ds_val_raw, system_prompt):
     print("Formatting train/val splits for SFT")
 
@@ -140,11 +184,14 @@ def format_sft_splits(ds_train_raw, ds_val_raw, system_prompt):
         convert_to_prompt_format,
         fn_kwargs={"system_prompt": system_prompt},
         remove_columns=ds_train_raw.column_names,
+        desc="Formatting train split",
     )
+
     fmtd_val = ds_val_raw.map(
         convert_to_prompt_format,
         fn_kwargs={"system_prompt": system_prompt},
         remove_columns=ds_val_raw.column_names,
+        desc="Formatting val split",
     )
 
     print("Formatted train columns:", fmtd_train.column_names)
@@ -152,12 +199,13 @@ def format_sft_splits(ds_train_raw, ds_val_raw, system_prompt):
 
     return fmtd_train, fmtd_val
 
-# ---------------------------------------------------------------------------------------------------------
-### Load tokenizer
-# ---------------------------------------------------------------------------------------------------------
-def load_tokenizer(current_model):
+
+# ------------------------------------------------------------------------------
+# Tokenizer
+# ------------------------------------------------------------------------------
+def load_tokenizer(model_name_or_path):
     tok = AutoTokenizer.from_pretrained(
-        current_model,
+        model_name_or_path,
         use_fast=True,
         trust_remote_code=True,
     )
@@ -168,11 +216,16 @@ def load_tokenizer(current_model):
     tok.padding_side = "right"
     return tok
 
-# ---------------------------------------------------------------------------------------------------------
-### Load 4-bit quantized base model
-# ---------------------------------------------------------------------------------------------------------
-def load_model(current_model, quantization_config_yaml):
-    compute_dtype_name = quantization_config_yaml["bnb_4bit_compute_dtype"]
+
+# ------------------------------------------------------------------------------
+# Quantization helpers
+# ------------------------------------------------------------------------------
+def maybe_get_quantization_config(quantization_yaml):
+    enabled = quantization_yaml.get("enabled", True)
+    if not enabled:
+        return None
+
+    compute_dtype_name = quantization_yaml["bnb_4bit_compute_dtype"]
 
     if compute_dtype_name == "bfloat16":
         compute_dtype = torch.bfloat16
@@ -181,28 +234,42 @@ def load_model(current_model, quantization_config_yaml):
     else:
         raise ValueError(f"Unsupported compute dtype: {compute_dtype_name}")
 
-    bnb_config = BitsAndBytesConfig(
-        load_in_4bit=quantization_config_yaml["load_in_4bit"],
-        bnb_4bit_quant_type=quantization_config_yaml["bnb_4bit_quant_type"],
-        bnb_4bit_use_double_quant=quantization_config_yaml["bnb_4bit_use_double_quant"],
+    return BitsAndBytesConfig(
+        load_in_4bit=quantization_yaml["load_in_4bit"],
+        bnb_4bit_quant_type=quantization_yaml["bnb_4bit_quant_type"],
+        bnb_4bit_use_double_quant=quantization_yaml["bnb_4bit_use_double_quant"],
         bnb_4bit_compute_dtype=compute_dtype,
     )
 
+
+def load_model(model_config, quantization_yaml):
+    model_name = model_config["name"]
+
+    quantization_config = maybe_get_quantization_config(quantization_yaml)
+
+    model_kwargs = {
+        "trust_remote_code": True,
+    }
+
+    if quantization_config is not None:
+        model_kwargs["quantization_config"] = quantization_config
+        model_kwargs["device_map"] = "auto"
+
     model = AutoModelForCausalLM.from_pretrained(
-        current_model,
-        quantization_config=bnb_config,
-        device_map="auto",
-        trust_remote_code=True,
+        model_name,
+        **model_kwargs,
     )
 
-    model = prepare_model_for_kbit_training(model)
-    model.config.use_cache = False
+    if quantization_config is not None:
+        model = prepare_model_for_kbit_training(model)
 
+    model.config.use_cache = False
     return model
 
-# ---------------------------------------------------------------------------------------------------------
-### Build LoRA config
-# ---------------------------------------------------------------------------------------------------------
+
+# ------------------------------------------------------------------------------
+# LoRA
+# ------------------------------------------------------------------------------
 def build_peft_config(lora_yaml):
     return LoraConfig(
         r=lora_yaml["r"],
@@ -213,32 +280,64 @@ def build_peft_config(lora_yaml):
         target_modules=lora_yaml["target_modules"],
     )
 
-# ---------------------------------------------------------------------------------------------------------
-### Build SFT trainer config
-# ---------------------------------------------------------------------------------------------------------
-def build_sft_config(training_yaml, output_directory):
-    return SFTConfig(
-        output_dir=output_directory,
-        max_length=training_yaml["max_length"],
-        per_device_train_batch_size=training_yaml["per_device_train_batch_size"],
-        per_device_eval_batch_size=training_yaml["per_device_eval_batch_size"],
-        gradient_accumulation_steps=training_yaml["gradient_accumulation_steps"],
-        num_train_epochs=training_yaml["num_train_epochs"],
-        learning_rate=training_yaml["learning_rate"],
-        warmup_steps=training_yaml["warmup_steps"],
-        logging_steps=training_yaml["logging_steps"],
-        eval_strategy=training_yaml["eval_strategy"],
-        eval_steps=training_yaml["eval_steps"],
-        save_steps=training_yaml["save_steps"],
-        save_total_limit=training_yaml["save_total_limit"],
-        bf16=training_yaml["bf16"],
-        report_to=training_yaml["report_to"],
-    )
 
-# ---------------------------------------------------------------------------------------------------------
-### Save run configs
-# ---------------------------------------------------------------------------------------------------------
-def save_run_metadata(output_directory, sft_config, data_config, exp_config, model_config, prepared_data_path):
+# ------------------------------------------------------------------------------
+# Training config
+# ------------------------------------------------------------------------------
+def build_sft_config(training_yaml, output_directory):
+    # Support both naming styles:
+    # - max_length OR max_seq_length
+    # - eval_strategy OR evaluation_strategy
+    max_length = training_yaml.get("max_length", training_yaml.get("max_seq_length"))
+    eval_strategy = training_yaml.get("eval_strategy", training_yaml.get("evaluation_strategy"))
+
+    if max_length is None:
+        raise KeyError("training.max_length (or max_seq_length) is required in sft.yaml")
+
+    if eval_strategy is None:
+        raise KeyError("training.eval_strategy (or evaluation_strategy) is required in sft.yaml")
+
+    config_kwargs = {
+        "output_dir": output_directory,
+        "max_length": max_length,
+        "per_device_train_batch_size": training_yaml["per_device_train_batch_size"],
+        "per_device_eval_batch_size": training_yaml["per_device_eval_batch_size"],
+        "gradient_accumulation_steps": training_yaml["gradient_accumulation_steps"],
+        "num_train_epochs": training_yaml["num_train_epochs"],
+        "learning_rate": training_yaml["learning_rate"],
+        "warmup_steps": training_yaml["warmup_steps"],
+        "logging_steps": training_yaml["logging_steps"],
+        "eval_strategy": eval_strategy,
+        "eval_steps": training_yaml["eval_steps"],
+        "save_steps": training_yaml["save_steps"],
+        "save_total_limit": training_yaml["save_total_limit"],
+        "bf16": training_yaml.get("bf16", False),
+        "report_to": training_yaml.get("report_to", []),
+    }
+
+    # Optional fields from your YAML
+    if "gradient_checkpointing" in training_yaml:
+        config_kwargs["gradient_checkpointing"] = training_yaml["gradient_checkpointing"]
+
+    # Some TRL versions may accept packing; some may not.
+    # We only include it if present.
+    if "packing" in training_yaml:
+        config_kwargs["packing"] = training_yaml["packing"]
+
+    return SFTConfig(**config_kwargs)
+
+
+# ------------------------------------------------------------------------------
+# Metadata saving
+# ------------------------------------------------------------------------------
+def save_run_metadata(
+    output_directory,
+    sft_config,
+    data_config,
+    exp_config,
+    model_config,
+    prepared_data_path,
+):
     os.makedirs(output_directory, exist_ok=True)
 
     with open(os.path.join(output_directory, "sft_config_used.yaml"), "w") as f:
@@ -259,9 +358,10 @@ def save_run_metadata(output_directory, sft_config, data_config, exp_config, mod
     with open(os.path.join(output_directory, "run_summary.yaml"), "w") as f:
         yaml.safe_dump(run_summary, f, sort_keys=False)
 
-# ---------------------------------------------------------------------------------------------------------
-### Print trainable parameter count
-# ---------------------------------------------------------------------------------------------------------
+
+# ------------------------------------------------------------------------------
+# Trainable parameter stats
+# ------------------------------------------------------------------------------
 def print_trainable_parameters(model):
     trainable_params = 0
     all_params = 0
@@ -278,19 +378,27 @@ def print_trainable_parameters(model):
     print(f"All params: {all_params:,}")
     print(f"Trainable %: {pct:.4f}")
 
-# ---------------------------------------------------------------------------------------------------------
-### Main training function
-# ---------------------------------------------------------------------------------------------------------
-def train_model():
-    sft_config, data_config, exp_config, model_config, prepared_data_path, output_directory = load_configs()
+
+# ------------------------------------------------------------------------------
+# Main
+# ------------------------------------------------------------------------------
+def train_model(sft_config_path=None):
+    (
+        sft_config,
+        data_config,
+        exp_config,
+        model_config,
+        prepared_data_path,
+        output_directory,
+    ) = load_configs(sft_config_path=sft_config_path)
 
     seed = sft_config["run"]["seed"]
-    current_model = model_config["name"]
     system_prompt = sft_config["prompting"]["system_prompt"]
+    model_name = model_config["name"]
 
     print("Experiment:", sft_config["run"]["experiment_name"])
     print("Model key:", sft_config["run"]["model_key"])
-    print("Model name:", current_model)
+    print("Model name:", model_name)
     print("Prepared data path:", prepared_data_path)
     print("Output directory:", output_directory)
 
@@ -299,8 +407,8 @@ def train_model():
     ds_train_raw, ds_val_raw, ds_test_raw = load_prepared_splits(prepared_data_path)
     ds_train, ds_val = format_sft_splits(ds_train_raw, ds_val_raw, system_prompt)
 
-    tok = load_tokenizer(current_model)
-    model = load_model(current_model, sft_config["quantization"])
+    tok = load_tokenizer(model_name)
+    model = load_model(model_config, sft_config["quantization"])
     peft_config = build_peft_config(sft_config["lora"])
     sft_trainer_config = build_sft_config(sft_config["training"], output_directory)
 
@@ -320,7 +428,7 @@ def train_model():
         eval_dataset=ds_val,
         processing_class=tok,
         peft_config=peft_config,
-        dataset_text_field="text",
+        dataset_text_field=sft_config.get("data", {}).get("text_field", "text"),
     )
 
     print_trainable_parameters(trainer.model)
@@ -334,3 +442,7 @@ def train_model():
 
     print("Done. Saved to:", sft_trainer_config.output_dir)
     print("Test split was loaded but not used for training:", len(ds_test_raw))
+
+
+if __name__ == "__main__":
+    train_model()
