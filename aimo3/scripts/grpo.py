@@ -6,7 +6,7 @@
 #       - update model to increase the probability of higher-reward outputs
 #       - apply KL penalty to stay close to the SFT model
 # Output:
-# - checkpoints/grpo_model/ (your RL-tuned checkpoint)
+# - checkpoints/grpo_model/ (RL-tuned checkpoint)
 
 import os
 import re
