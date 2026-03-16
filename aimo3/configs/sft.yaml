@@ -5,3 +5,75 @@
 # - QL0RA settings
 # - SFT Params
 # - Output checkpoint directory (REVIEW)
+
+# Defines one SFT run
+# - choose experiment_name (exp1/exp2/exp3/exp4)
+# - choose model_key (qwen/deepseekmath)
+
+run:
+  seed: 42
+  experiment_name: "exp1"         # exp1 = N=100
+  model_key: "deepseekmath"       # change to "qwen" when needed
+
+paths:
+  data_config_path: null
+  prepared_splits_root: "/content/drive/MyDrive/Math Olympiad Competition/processed_splits/omr_aimo3"
+  output_root: "/content/drive/MyDrive/Math Olympiad Competition/models"
+
+prompting:
+  system_prompt: |
+    You are a mathematical problem solver.
+    Solve step-by-step.
+    At the end, output a line exactly of the form:
+    FINAL_ANSWER: <integer>
+    Where <integer> is an integer between 0 and 99999.
+
+data:
+  train_split: "train"
+  eval_split: "val"
+  test_split: "test"
+  problem_field: "problem"
+  reasoning_field: "generated_solution"
+  answer_field: "expected_answer"
+  text_field: "text"
+
+quantization:
+  enabled: true
+  load_in_4bit: true
+  bnb_4bit_quant_type: "nf4"
+  bnb_4bit_use_double_quant: true
+  bnb_4bit_compute_dtype: "bfloat16"
+
+lora:
+  r: 16
+  lora_alpha: 32
+  lora_dropout: 0.05
+  bias: "none"
+  task_type: "CAUSAL_LM"
+  target_modules:
+    - "q_proj"
+    - "k_proj"
+    - "v_proj"
+    - "o_proj"
+    - "gate_proj"
+    - "up_proj"
+    - "down_proj"
+
+training:
+  max_seq_length: 2048
+  per_device_train_batch_size: 1
+  per_device_eval_batch_size: 1
+  gradient_accumulation_steps: 8
+  num_train_epochs: 1
+  learning_rate: 5.0e-5
+  warmup_steps: 50
+  logging_steps: 10
+  evaluation_strategy: "steps"
+  eval_steps: 50
+  save_strategy: "steps"
+  save_steps: 50
+  save_total_limit: 1
+  bf16: true
+  gradient_checkpointing: true
+  report_to: []
+  packing: false
