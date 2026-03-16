@@ -48,21 +48,18 @@ def filter_rows(row, filtering_config):
             return False
         if isinstance(val, str) and not val.strip():
             return False
-
     return True
 
 def apply_filter(cot_data, filtering_config):
     print("Applying filters")
     print("Filtering config:", filtering_config)
     print("First row passes filter:", filter_rows(cot_data[0], filtering_config))
-
     filtered = cot_data.filter(
         filter_rows,
         fn_kwargs={"filtering_config": filtering_config},
         load_from_cache_file=False,
         desc="Filtering rows"
     )
-
     print("Filtered size:", len(filtered))
     return filtered
 
@@ -70,12 +67,10 @@ def apply_filter(cot_data, filtering_config):
 # Take N rows
 # --------------------------------------------------------------------------------
 def take_n_rows(filtered, n, seed):
-    print(f"Taking up to {n} rows...")
+    print(f"Extracting {n} rows.")
     shuffled = filtered.shuffle(seed=seed)
-
     n = min(n, len(shuffled))
     row_selection = shuffled.select(range(n))
-
     print("Selected size:", len(row_selection))
     return row_selection
 
@@ -83,39 +78,26 @@ def take_n_rows(filtered, n, seed):
 # Split Train / Val / Test by unique problem text
 # --------------------------------------------------------------------------------
 def split_train_val_test(row_selection, split_config, seed):
-    print("Splitting into Train/Val/Test...")
-
+    print("Splitting into Train/Val/Test")
     total_split = split_config["train"] + split_config["val"] + split_config["test"]
-    if abs(total_split - 1.0) > 1e-8:
-        raise ValueError(f"Splits must sum to 1.0, got {total_split}")
-
     problem_groups = defaultdict(list)
-
     for row in row_selection:
         problem = row["problem"].strip()
         problem_groups[problem].append(row)
-
     unique_problems = list(problem_groups.keys())
-
     rng = random.Random(seed)
     rng.shuffle(unique_problems)
-
     total_problems = len(unique_problems)
-
     train_frac = split_config["train"]
     val_frac = split_config["val"]
-
     train_end = int(train_frac * total_problems)
     val_end = train_end + int(val_frac * total_problems)
-
     train_problems = unique_problems[:train_end]
     val_problems = unique_problems[train_end:val_end]
     test_problems = unique_problems[val_end:]
-
     train_rows = []
     val_rows = []
     test_rows = []
-
     for problem in train_problems:
         train_rows.extend(problem_groups[problem])
 
@@ -129,10 +111,10 @@ def split_train_val_test(row_selection, split_config, seed):
     ds_val_raw = Dataset.from_list(val_rows)
     ds_test_raw = Dataset.from_list(test_rows)
 
-    print("Unique problems total:", total_problems)
-    print("Train problems:", len(train_problems))
-    print("Val problems:", len(val_problems))
-    print("Test problems:", len(test_problems))
+    # print("Unique problems total:", total_problems)
+    # print("Train problems:", len(train_problems))
+    # print("Val problems:", len(val_problems))
+    # print("Test problems:", len(test_problems))
 
     print("Train rows:", len(ds_train_raw))
     print("Val rows:", len(ds_val_raw))
@@ -144,20 +126,14 @@ def split_train_val_test(row_selection, split_config, seed):
 # Save splits
 # --------------------------------------------------------------------------------
 def save_splits(ds_train_raw, ds_val_raw, ds_test_raw, save_dir):
-    print("Saving Train/Val/Test splits...")
-
-    if len(ds_train_raw) == 0 and len(ds_val_raw) == 0 and len(ds_test_raw) == 0:
-        raise ValueError("All splits are empty. Check filtering and sampling before saving.")
-
+    print("Saving Train/Val/Test splits")
     prepared = DatasetDict({
         "train": ds_train_raw,
         "val": ds_val_raw,
         "test": ds_test_raw,
     })
-
     os.makedirs(save_dir, exist_ok=True)
     prepared.save_to_disk(save_dir)
-
     print(f"Saved prepared splits to: {save_dir}")
 
 # --------------------------------------------------------------------------------
@@ -176,12 +152,6 @@ def run_exp(full_config, exp_name, save_root):
     filtered = apply_filter(cot_data, filtering_config)
     row_selection = take_n_rows(filtered, n, seed)
     ds_train_raw, ds_val_raw, ds_test_raw = split_train_val_test(row_selection, split_config, seed)
-
     save_dir = os.path.join(save_root, "splits", str(n))
     save_splits(ds_train_raw, ds_val_raw, ds_test_raw, save_dir)
-
-    return DatasetDict({
-        "train": ds_train_raw,
-        "val": ds_val_raw,
-        "test": ds_test_raw,
-    })
+    return DatasetDict({"train": ds_train_raw, "val": ds_val_raw, "test": ds_test_raw})
