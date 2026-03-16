@@ -9,17 +9,6 @@
 # Output:
 # - output_dir/ (SFT checkpoint)
 
-# Input: prepared train/val/test splits from step 00
-# - Formats each row for supervised fine-tuning (SFT)
-# - Prompt = SYSTEM_PROMPT + problem + "\n\nSolution:\n"
-# - Completion = generated_solution + "\nFINAL_ANSWER: expected_answer"
-# - Loads tokenizer and 4-bit quantized base model
-# - Applies LoRA for parameter-efficient fine-tuning
-# - Trains with SFTTrainer
-# - Saves model adapter weights and tokenizer
-# Output:
-# - output_dir/ (SFT checkpoint)
-
 # ---------------------------------------------------------------------------------------------------------
 ### Imports for the script
 # ---------------------------------------------------------------------------------------------------------
