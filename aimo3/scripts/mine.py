@@ -36,6 +36,9 @@ def get_sft_config_path():
 def get_data_config_path():
     return get_repo_root() / "configs" / "data.yaml"
 
+def get_mine_config_path():
+    return get_repo_root() / "configs" / "mine.yaml"
+
 def k_solutions(problem, model, k):
     # Generates K solutions for a specific problem
     solutions = []
@@ -47,11 +50,9 @@ def k_solutions(problem, model, k):
     return solutions
 
 def extract_answer(solution):
-    # # Extracts the predicted answer from a generated solution
-    # # This is a placeholder function and should be implemented based on the specific format of the solutions
-    # extracted_answer = solution.split("Answer:")[-1].strip()
-    # return extracted_answer
+    
     return 0
 
 def majority_vote(extracted_answers):
+    
     return 0
