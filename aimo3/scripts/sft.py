@@ -429,7 +429,7 @@ def train_model(sft_config_path=None):
     processing_class=tok,
     peft_config=peft_config,
     )
-    
+
     print_trainable_parameters(trainer.model)
 
     print("Starting training")
@@ -441,7 +441,3 @@ def train_model(sft_config_path=None):
 
     print("Done. Saved to:", sft_trainer_config.output_dir)
     print("Test split was loaded but not used for training:", len(ds_test_raw))
-
-
-if __name__ == "__main__":
-    train_model()
