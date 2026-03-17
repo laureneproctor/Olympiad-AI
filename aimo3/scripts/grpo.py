@@ -19,7 +19,7 @@ from datasets import load_from_disk
 from peft import LoraConfig, prepare_model_for_kbit_training
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 from trl import GRPOConfig, GRPOTrainer
-import helpers
+from . import helpers
 
 # ------------------------------------------------------------------------------
 # Path helpers

@@ -3,7 +3,7 @@ import random
 from pathlib import Path
 import torch
 import yaml
-import helpers
+from . import helpers
 from datasets import load_from_disk
 from peft import LoraConfig, prepare_model_for_kbit_training
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig

@@ -9,7 +9,7 @@ from typing import Dict, List, Optional, Tuple
 import torch
 import yaml
 from datasets import Dataset, load_from_disk
-import helpers
+from . import helpers
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 try:
