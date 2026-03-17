@@ -308,6 +308,8 @@ def build_reward_functions():
 # GRPO config
 # ------------------------------------------------------------------------------
 def build_grpo_training_config(training_yaml, output_directory):
+    import inspect
+
     config_kwargs = {
         "output_dir": output_directory,
         "learning_rate": training_yaml["learning_rate"],
@@ -316,8 +318,8 @@ def build_grpo_training_config(training_yaml, output_directory):
         "num_train_epochs": training_yaml.get("num_train_epochs", 1),
         "max_prompt_length": training_yaml["max_prompt_length"],
         "max_completion_length": training_yaml["max_completion_length"],
-        "num_generations": training_yaml["group_size"],   # important
-        "beta": training_yaml.get("beta", 0.04),          # KL penalty strength
+        "num_generations": training_yaml["group_size"],
+        "beta": training_yaml.get("beta", 0.04),
         "logging_steps": training_yaml["logging_steps"],
         "save_steps": training_yaml["save_steps"],
         "save_total_limit": training_yaml["save_total_limit"],
@@ -336,12 +338,19 @@ def build_grpo_training_config(training_yaml, output_directory):
         "scale_rewards",
         "loss_type",
     ]
-
     for key in optional_keys:
         if key in training_yaml:
             config_kwargs[key] = training_yaml[key]
 
-    return GRPOConfig(**config_kwargs)
+    # Filter to only params the installed TRL version accepts
+    valid_params = set(inspect.signature(GRPOConfig.__init__).parameters.keys())
+    filtered_kwargs = {k: v for k, v in config_kwargs.items() if k in valid_params}
+
+    dropped = set(config_kwargs.keys()) - set(filtered_kwargs.keys())
+    if dropped:
+        print(f"Note: dropped unsupported GRPOConfig params for this TRL version: {dropped}")
+
+    return GRPOConfig(**filtered_kwargs)
 
 # ------------------------------------------------------------------------------
 # Metadata saving
