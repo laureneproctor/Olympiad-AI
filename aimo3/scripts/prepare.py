@@ -15,7 +15,7 @@ from pathlib import Path
 import os
 import random
 import yaml
-import helpers
+from . import helpers
 """ 
 def get_data_config_path():
     return Path(__file__).resolve().parents[1] / "configs" / "data.yaml"
