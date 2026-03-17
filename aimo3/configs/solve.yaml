@@ -7,10 +7,10 @@ run:
   seed: 42
 
 paths:
-  data_config_path: null  # uses default if null
-  model_checkpoint: "/path/to/your/model"
-  dataset_path: "/path/to/problem/dataset"
-  output_path: "runs/preds.jsonl"
+  data_config_path: null
+  model_checkpoint: "/content/drive/MyDrive/Math Olympiad Competition/models/grpo_deepseekmath_exp1"
+  dataset_path: "/content/drive/MyDrive/Math Olympiad Competition/processed_splits/omr_aimo3/splits/100"
+  output_path: "/content/drive/MyDrive/Math Olympiad Competition/runs/solve_grpo_exp1/preds.jsonl"
 
 prompting:
   system_prompt: |
