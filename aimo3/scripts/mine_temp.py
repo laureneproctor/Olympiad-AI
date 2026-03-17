@@ -9,6 +9,7 @@ from typing import Dict, List, Optional, Tuple
 import torch
 import yaml
 from datasets import Dataset, load_from_disk
+import helpers
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 try:
@@ -20,7 +21,7 @@ except ImportError:
 # --------------------------------------------------------------------------
 # Paths and config loading
 # --------------------------------------------------------------------------
-def get_repo_root() -> Path:
+""" def get_repo_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
@@ -36,17 +37,17 @@ def load_yaml(config_path) -> dict:
     config_path = Path(config_path)
     with open(config_path, "r") as f:
         return yaml.safe_load(f)
-
+ """
 
 def load_configs(mine_config_path=None):
     if mine_config_path is None:
-        mine_config_path = get_mine_config_path()
+        mine_config_path = get_config_path("mine.yaml")
 
     mine_config = load_yaml(mine_config_path)
 
     data_config_path = mine_config.get("paths", {}).get("data_config_path")
     if not data_config_path:
-        data_config_path = get_data_config_path()
+        data_config_path = get_config_path( "data.yaml")
     data_config = load_yaml(data_config_path)
 
     paths = mine_config.get("paths", {})

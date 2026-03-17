@@ -14,25 +14,25 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 # ============================================================================
 # Path helpers
 # ============================================================================
-def get_repo_root():
-    return Path(__file__).resolve().parents[1]
+# def get_repo_root():
+#     return Path(__file__).resolve().parents[1]
 
 
-def get_solve_config_path():
-    return get_repo_root() / "configs" / "solve.yaml"
+# def get_solve_config_path():
+#     return get_repo_root() / "configs" / "solve.yaml"
 
 
-def get_data_config_path():
-    return get_repo_root() / "configs" / "data.yaml"
+# def get_data_config_path():
+#     return get_repo_root() / "configs" / "data.yaml"
 
 
 # ============================================================================
 # YAML loading
 # ============================================================================
-def load_yaml(config_path):
-    config_path = Path(config_path)
-    with open(config_path, "r") as f:
-        return yaml.safe_load(f)
+# def load_yaml(config_path):
+#     config_path = Path(config_path)
+#     with open(config_path, "r") as f:
+#         return yaml.safe_load(f)
 
 
 # ============================================================================
@@ -173,14 +173,14 @@ def majority_vote_answer(
 # ============================================================================
 def load_configs(solve_config_path=None):
     if solve_config_path is None:
-        solve_config_path = get_solve_config_path()
+        solve_config_path = get_config_path("solve.yaml")
 
     print(f"Loading solve config from {solve_config_path}...")
     solve_config = load_yaml(solve_config_path)
 
     data_config_path = solve_config.get("paths", {}).get("data_config_path")
     if not data_config_path:
-        data_config_path = get_data_config_path()
+        data_config_path = get_config_path("data.yaml")
 
     print(f"Loading data config from {data_config_path}...")
     data_config = load_yaml(data_config_path)

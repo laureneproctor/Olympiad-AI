@@ -3,6 +3,7 @@ import random
 from pathlib import Path
 import torch
 import yaml
+import helper
 from datasets import load_from_disk
 from peft import LoraConfig, prepare_model_for_kbit_training
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
@@ -11,33 +12,33 @@ from trl import SFTConfig, SFTTrainer
 # ------------------------------------------------------------------------------
 # Path helpers
 # ------------------------------------------------------------------------------
-def get_repo_root():
+""" def get_repo_root():
     return Path(__file__).resolve().parents[1]
 def get_sft_config_path():
     return get_repo_root() / "configs" / "sft.yaml"
 def get_data_config_path():
-    return get_repo_root() / "configs" / "data.yaml"
+    return get_repo_root() / "configs" / "data.yaml" """
 
 # ------------------------------------------------------------------------------
 # YAML loading
 # ------------------------------------------------------------------------------
-def load_yaml(config_path):
+""" def load_yaml(config_path):
     config_path = Path(config_path)
     with open(config_path, "r") as f:
         return yaml.safe_load(f)
-
+ """
 # ------------------------------------------------------------------------------
 # Config loading
 # ------------------------------------------------------------------------------
 def load_configs(sft_config_path=None):
     if sft_config_path is None:
-        sft_config_path = get_sft_config_path()
+        sft_config_path = get_config_path("sft.yaml")
 
     sft_config = load_yaml(sft_config_path)
 
     data_config_path = sft_config.get("paths", {}).get("data_config_path")
     if not data_config_path:
-        data_config_path = get_data_config_path()
+        data_config_path = get_config_path("data.yaml")
     data_config = load_yaml(data_config_path)
     exp_name = sft_config["run"]["experiment_name"]
     model_key = sft_config["run"]["model_key"]

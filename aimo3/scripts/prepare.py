@@ -15,7 +15,8 @@ from pathlib import Path
 import os
 import random
 import yaml
-
+import helpers
+""" 
 def get_data_config_path():
     return Path(__file__).resolve().parents[1] / "configs" / "data.yaml"
 
@@ -25,7 +26,7 @@ def load_yaml(config_path=None):
 
     with open(config_path, "r") as f:
         return yaml.safe_load(f)
-
+ """
 def load_data(dataset_path):
     print("Loading OpenMathReasoning dataset...")
     cot_data = load_from_disk(dataset_path)
