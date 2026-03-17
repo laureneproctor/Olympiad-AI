@@ -17,6 +17,7 @@ import torch
 import yaml
 from datasets import Dataset, load_from_disk
 from transformers import AutoTokenizer, AutoModelForCausalLM
+from helpers import get_config_path, load_yaml, set_seeds
 
 try:
     from peft import AutoPeftModelForCausalLM
@@ -28,7 +29,7 @@ except ImportError:
 # Path helpers
 # ---------------------------
 
-def get_repo_root():
+""" def get_repo_root():
     return Path(__file__).resolve().parents[1]
 
 
@@ -41,7 +42,7 @@ def get_data_config_path():
 
 
 def get_sft_config_path():
-    return get_repo_root() / "configs" / "sft.yaml"
+    return get_repo_root() / "configs" / "sft.yaml" """
 
 
 # ---------------------------
@@ -56,18 +57,18 @@ def load_yaml(config_path):
 
 def load_configs(evaluate_config_path=None):
     if evaluate_config_path is None:
-        evaluate_config_path = get_evaluate_config_path()
+        evaluate_config_path = get_config_path("evaluate.yaml")
 
     evaluate_config = load_yaml(evaluate_config_path)
 
     data_config_path = evaluate_config.get("paths", {}).get("data_config_path")
     if not data_config_path:
-        data_config_path = get_data_config_path()
+        data_config_path = get_config_path("data.yaml")
     data_config = load_yaml(data_config_path)
 
     sft_config_path = evaluate_config.get("paths", {}).get("sft_config_path")
     if not sft_config_path:
-        sft_config_path = get_sft_config_path()
+        sft_config_path = get_config_path("sft.yaml")
     sft_config = load_yaml(sft_config_path)
 
     exp_name = sft_config["run"]["experiment_name"]
