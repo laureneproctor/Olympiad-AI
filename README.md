@@ -2,8 +2,7 @@
 Building a system that parses LaTeX- formatted math problems and uses a model to solve math olympiad-level questions.
 
 ## Time-line
-
-<img width="777" height="285" alt="Screenshot 2026-03-12 at 9 05 05 AM" src="https://github.com/user-attachments/assets/82d3410b-ad45-4f0c-a27a-6424b5032000" />
+<img width="1081" height="423" alt="Screenshot 2026-03-17 at 1 09 17 PM" src="https://github.com/user-attachments/assets/e63f1332-1763-462e-9915-a14a19b798ea" />
 
 ## Project Structure
 
