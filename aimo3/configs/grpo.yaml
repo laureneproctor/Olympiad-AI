@@ -25,7 +25,7 @@ prompting:
     Where <integer> is an integer between 0 and 99999.
 
 quantization:
-  enabled: true
+  enabled: false
   load_in_4bit: true
   bnb_4bit_quant_type: "nf4"
   bnb_4bit_use_double_quant: true

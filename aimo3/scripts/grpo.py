@@ -180,11 +180,13 @@ def load_model_for_grpo(starting_checkpoint, quantization_yaml):
 
     model_kwargs = {
         "trust_remote_code": True,
+        "device_map": "auto",
     }
 
     if quantization_config is not None:
         model_kwargs["quantization_config"] = quantization_config
-        model_kwargs["device_map"] = "auto"
+    else:
+        model_kwargs["torch_dtype"] = torch.bfloat16 if torch.cuda.is_available() else torch.float32
 
     model = AutoModelForCausalLM.from_pretrained(
         starting_checkpoint,
@@ -196,7 +198,6 @@ def load_model_for_grpo(starting_checkpoint, quantization_yaml):
 
     model.config.use_cache = False
     return model
-
 # ------------------------------------------------------------------------------
 # LoRA
 # ------------------------------------------------------------------------------
