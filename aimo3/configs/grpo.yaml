@@ -12,8 +12,8 @@ run:
 
 paths:
   data_config_path: null
-  starting_checkpoint: "/content/drive/MyDrive/Math Olympiad Competition/models/sft_deepseekmath_exp1"
-  rl_train_path: "/content/drive/MyDrive/Math Olympiad Competition/rl_train/exp1_deepseekmath"
+  starting_checkpoint: "/content/drive/MyDrive/Math Olympiad Competition/models/sft_qwen_exp1"
+  rl_train_path: "/content/drive/MyDrive/Math Olympiad Competition/rl_train/exp1_qwen"
   output_root: "/content/drive/MyDrive/Math Olympiad Competition/models"
 
 prompting:
