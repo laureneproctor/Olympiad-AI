@@ -141,19 +141,22 @@ def save_splits(ds_train_raw, ds_val_raw, ds_test_raw, save_dir):
 # --------------------------------------------------------------------------------
 # Run one experiment from YAML
 # --------------------------------------------------------------------------------
-def run_exp(full_config, exp_name, save_root):
+def run_exp(exp_name):
+    full_config = helpers.get_config_path("data.yaml")
     dataset_path = full_config["dataset"]["path"]
     filtering_config = full_config["dataset"]["filtering"]
-
     exp_config = full_config["experiments"][exp_name]
+
     seed = exp_config["seed"]
     n = exp_config["N"]
     split_config = exp_config["splits"]
-
     cot_data = load_data(dataset_path)
+
     filtered = apply_filter(cot_data, filtering_config)
     row_selection = take_n_rows(filtered, n, seed)
     ds_train_raw, ds_val_raw, ds_test_raw = split_train_val_test(row_selection, split_config, seed)
-    save_dir = os.path.join(save_root, "splits", str(n))
+
+    sr = helpers.get_repo_root()
+    save_dir = os.path.join(sr, "splits", str(n))
     save_splits(ds_train_raw, ds_val_raw, ds_test_raw, save_dir)
     return DatasetDict({"train": ds_train_raw, "val": ds_val_raw, "test": ds_test_raw})
