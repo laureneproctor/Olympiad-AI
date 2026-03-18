@@ -9,8 +9,8 @@ dataset:
 
 models:
   qwen:
-    name: "Qwen/Qwen2.5-7B-Instruct"
-    tokenizer_name: "Qwen/Qwen2.5-7B-Instruct"
+    name: "Qwen/Qwen3-8B"
+    tokenizer_name: "Qwen/Qwen3-8B"
     provider: "huggingface"
     family: "Qwen"
     dtype: "bfloat16"
