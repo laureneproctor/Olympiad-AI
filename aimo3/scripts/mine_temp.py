@@ -42,14 +42,14 @@ def load_yaml(config_path) -> dict:
 
 def load_configs(mine_config_path=None):
     if mine_config_path is None:
-        mine_config_path = get_config_path("mine.yaml")
+        mine_config_path = helpers.get_config_path("mine.yaml")
 
-    mine_config = load_yaml(mine_config_path)
+    mine_config = helpers.load_yaml(mine_config_path)
 
     data_config_path = mine_config.get("paths", {}).get("data_config_path")
     if not data_config_path:
-        data_config_path = get_config_path( "data.yaml")
-    data_config = load_yaml(data_config_path)
+        data_config_path = helpers.get_config_path("data.yaml")
+    data_config = helpers.load_yaml(data_config_path)
 
     paths = mine_config.get("paths", {})
     generation = mine_config.get("generation", {})
