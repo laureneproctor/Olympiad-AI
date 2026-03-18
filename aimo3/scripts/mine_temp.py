@@ -396,7 +396,7 @@ def mine_failures(mine_config_path=None):
         os.makedirs(os.path.dirname(report_path), exist_ok=True)
 
         report = {
-            "config_path": str(mine_config_path if mine_config_path else get_mine_config_path()),
+            "config_path": str(mine_config_path if mine_config_path else helpers.get_config_path()),
             "dataset_path": dataset_path,
             "dataset_split": dataset_split,
             "model_checkpoint": model_checkpoint,
