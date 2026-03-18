@@ -49,12 +49,12 @@ def load_yaml(config_path):
 # ------------------------------------------------------------------------------
 def load_configs(grpo_config_path=None):
     if grpo_config_path is None:
-        grpo_config_path = get_config_path("grpo.yaml")
-    grpo_config = load_yaml(grpo_config_path)
+        grpo_config_path = helpers.get_config_path("grpo.yaml")
+    grpo_config = helpers.load_yaml(grpo_config_path)
     data_config_path = grpo_config.get("paths", {}).get("data_config_path")
     if not data_config_path:
-        data_config_path = get_config_path("data.yaml")
-    data_config = load_yaml(data_config_path)
+        data_config_path = helpers.get_config_path("data.yaml")
+    data_config = helpers.load_yaml(data_config_path)
     exp_name = grpo_config["run"]["experiment_name"]
     model_key = grpo_config["run"]["model_key"]
     exp_config = data_config["experiments"][exp_name]
