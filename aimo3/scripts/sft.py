@@ -33,19 +33,21 @@ def get_data_config_path():
 # ------------------------------------------------------------------------------
 def load_configs(sft_config_path=None):
     if sft_config_path is None:
-        sft_config_path = get_config_path("sft.yaml")
+        sft_config_path = helpers.get_config_path("sft.yaml")
 
-    sft_config = load_yaml(sft_config_path)
+    sft_config = helpers.load_yaml(sft_config_path)
 
     data_config_path = sft_config.get("paths", {}).get("data_config_path")
     if not data_config_path:
-        data_config_path = get_config_path("data.yaml")
-    data_config = load_yaml(data_config_path)
+        data_config_path = helpers.get_config_path("data.yaml")
+    data_config = helpers.load_yaml(data_config_path)
+
     exp_name = sft_config["run"]["experiment_name"]
     model_key = sft_config["run"]["model_key"]
     exp_config = data_config["experiments"][exp_name]
     model_config = data_config["models"][model_key]
     n = exp_config["N"]
+
     prepared_data_path = os.path.join(
         sft_config["paths"]["prepared_splits_root"],
         "splits",
