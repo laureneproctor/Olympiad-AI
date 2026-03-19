@@ -1,26 +1,26 @@
 run:
-  seed: 42
+seed: 42
 
 paths:
-  data_config_path: null
-  sft_config_path: "/content/Olympiad-AI/aimo3/configs/sft.yaml"
-  model_checkpoint: "/content/drive/MyDrive/Math Olympiad Competition/models/grpo_qwen_exp1"
-  dataset_path: "/content/drive/MyDrive/Math Olympiad Competition/processed_splits/omr_aimo3/splits/100"
-  output_dir: "/content/drive/MyDrive/Math Olympiad Competition/runs/evaluation_grpo_gwen"
+data_config_path: null
+sft_config_path: "/content/Olympiad-AI/aimo3/configs/sft.yaml"
+model_checkpoint: "/content/drive/MyDrive/Math Olympiad Competition/models/grpo_qwen_exp1"
+dataset_path: "/content/drive/MyDrive/Math Olympiad Competition/processed_splits/omr_aimo3/splits/100"
+output_dir: "/content/drive/MyDrive/Math Olympiad Competition/runs/evaluation_grpo_qwen"
 
 evaluation:
-  split: "test"
-  max_items: null
-  eval_pass1: true
-  pass1_max_new_tokens: 512
-  eval_majn: true
-  majn_n_samples: 8
-  majn_max_items: 10
-  majn_max_new_tokens: 512
-  majn_temperature: 0.7
-  majn_top_p: 0.95
+split: "test"
+max_items: null
+eval_pass1: true
+pass1_max_new_tokens: 512
+eval_majn: true
+majn_n_samples: 8
+majn_max_items: null
+majn_max_new_tokens: 512
+majn_temperature: 0.7
+majn_top_p: 0.95
 
 reporting:
-  save_report: true
-  report_filename: "evaluation_report_grpo.json"
-  verbose: true
+save_report: true
+report_filename: "evaluation_report_grpo_qwen.json"
+verbose: true
