@@ -30,4 +30,4 @@ failure_criteria:
 
 reporting:
   save_mining_report: true
-  report_path: "/content/drive/MyDrive/Math Olympiad Competition/runs/mining_report_exp1_deepseekmath.json"
+  report_path: "/content/drive/MyDrive/Math Olympiad Competition/runs/mining_report_exp1_qwen.json"
