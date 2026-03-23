@@ -11,27 +11,17 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 from trl import SFTConfig, SFTTrainer
 
 # ------------------------------------------------------------------------------
-# Path helpers
-# ------------------------------------------------------------------------------
-""" def get_repo_root():
-    return Path(__file__).resolve().parents[1]
-def get_sft_config_path():
-    return get_repo_root() / "configs" / "sft.yaml"
-def get_data_config_path():
-    return get_repo_root() / "configs" / "data.yaml" """
-
-# ------------------------------------------------------------------------------
-# YAML loading
-# ------------------------------------------------------------------------------
-""" def load_yaml(config_path):
-    config_path = Path(config_path)
-    with open(config_path, "r") as f:
-        return yaml.safe_load(f)
- """
-# ------------------------------------------------------------------------------
 # Config loading
 # ------------------------------------------------------------------------------
 def load_configs(sft_config_path=None):
+    """
+        Loads and resolves configs and paths needed for SFT training.
+        Input:
+        - sft_config_path: optional path to the SFT config YAML file
+        Output:
+        - tuple: (sft_config, data_config, exp_config, model_config,
+            prepared_data_path, output_directory)
+    """
     if sft_config_path is None:
         sft_config_path = helpers.get_config_path("sft.yaml")
 
@@ -67,18 +57,17 @@ def load_configs(sft_config_path=None):
     )
 
 # ------------------------------------------------------------------------------
-# Seed
-# ------------------------------------------------------------------------------
-def set_seeds(seed):
-    random.seed(seed)
-    torch.manual_seed(seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(seed)
-
-# ------------------------------------------------------------------------------
 # Prompt formatting
 # ------------------------------------------------------------------------------
 def convert_to_prompt_format(example, system_prompt):
+    """
+    Converts one dataset example into SFT prompt text format.
+    Input:
+    - example: dataset row with problem, generated_solution, and expected_answer
+    - system_prompt: instruction prefix prepended before each problem
+    Output:
+    - row: dict with text and expected_answer fields
+    """
     problem = str(example["problem"]).strip()
     reasoning = str(example["generated_solution"]).strip()
     answer = str(example["expected_answer"]).strip()
@@ -102,6 +91,13 @@ def convert_to_prompt_format(example, system_prompt):
 # Load prepared splits
 # ------------------------------------------------------------------------------
 def load_prepared_splits(prepared_data_path):
+    """
+    Loads prepared train/val/test splits from disk.
+    Input:
+    - prepared_data_path: path to prepared dataset splits
+    Output:
+    - tuple: (ds_train_raw, ds_val_raw, ds_test_raw)
+    """
     print("Loading processed Train/Val/Test splits")
     print("Prepared path:", prepared_data_path)
     prepared = load_from_disk(prepared_data_path)
@@ -118,6 +114,15 @@ def load_prepared_splits(prepared_data_path):
 # Format splits
 # ------------------------------------------------------------------------------
 def format_sft_splits(ds_train_raw, ds_val_raw, system_prompt):
+    """
+    Formats raw train and validation splits for SFT training.
+    Input:
+    - ds_train_raw: raw training split
+    - ds_val_raw: raw validation split
+    - system_prompt: instruction prefix used in prompt formatting
+    Output:
+    - tuple: (fmtd_train, fmtd_val)
+    """
     print("Formatting train/val splits for SFT")
 
     fmtd_train = ds_train_raw.map(
@@ -142,6 +147,13 @@ def format_sft_splits(ds_train_raw, ds_val_raw, system_prompt):
 # Tokenizer
 # ------------------------------------------------------------------------------
 def load_tokenizer(model_name_or_path):
+    """
+    Loads tokenizer and enforces right-padding with a valid pad token.
+    Input:
+    - model_name_or_path: Hugging Face model name or local model path
+    Output:
+    - tok: configured tokenizer
+    """
     tok = AutoTokenizer.from_pretrained(
         model_name_or_path,
         use_fast=True,
@@ -156,6 +168,13 @@ def load_tokenizer(model_name_or_path):
 # Quantization helpers
 # ------------------------------------------------------------------------------
 def maybe_get_quantization_config(quantization_yaml):
+    """
+    Builds a BitsAndBytes quantization config when quantization is enabled.
+    Input:
+    - quantization_yaml: quantization settings from config
+    Output:
+    - quantization_config: BitsAndBytesConfig, or None if disabled
+    """
     enabled = quantization_yaml.get("enabled", True)
     if not enabled:
         return None
@@ -174,6 +193,14 @@ def maybe_get_quantization_config(quantization_yaml):
     )
 
 def load_model(model_config, quantization_yaml):
+    """
+    Loads model with optional 4-bit quantization and k-bit prep.
+    Input:
+    - model_config: selected model config section from data config
+    - quantization_yaml: quantization settings from SFT config
+    Output:
+    - model: loaded causal language model ready for SFT
+    """
     model_name = model_config["name"]
     quantization_config = maybe_get_quantization_config(quantization_yaml)
     model_kwargs = {"trust_remote_code": True,
@@ -194,6 +221,13 @@ def load_model(model_config, quantization_yaml):
 # LoRA
 # ------------------------------------------------------------------------------
 def build_peft_config(lora_yaml):
+    """
+    Builds a LoRA PEFT configuration from YAML settings.
+    Input:
+    - lora_yaml: LoRA settings from config
+    Output:
+    - peft_config: LoraConfig for training
+    """
     return LoraConfig(
         r=lora_yaml["r"],
         lora_alpha=lora_yaml["lora_alpha"],
@@ -207,6 +241,14 @@ def build_peft_config(lora_yaml):
 # Training config
 # ------------------------------------------------------------------------------
 def build_sft_config(training_yaml, output_directory):
+    """
+    Builds TRL SFTConfig from training settings.
+    Input:
+    - training_yaml: training hyperparameters and runtime options
+    - output_directory: directory for checkpoints and outputs
+    Output:
+    - sft_config: SFTConfig object for SFTTrainer
+    """
     max_length = training_yaml.get("max_length", training_yaml.get("max_seq_length"))
     eval_strategy = training_yaml.get("eval_strategy", training_yaml.get("evaluation_strategy"))
 
@@ -245,6 +287,18 @@ def save_run_metadata(
     model_config,
     prepared_data_path,
 ):
+    """
+    Saves configs and run summary files for reproducibility.
+    Input:
+    - output_directory: directory where metadata files are written
+    - sft_config: resolved SFT config dict
+    - data_config: resolved data config dict
+    - exp_config: selected experiment config dict
+    - model_config: selected model config dict
+    - prepared_data_path: resolved path to prepared data splits
+    Output:
+    - none
+    """
     os.makedirs(output_directory, exist_ok=True)
 
     with open(os.path.join(output_directory, "sft_config_used.yaml"), "w") as f:
@@ -268,6 +322,13 @@ def save_run_metadata(
 # Main
 # ------------------------------------------------------------------------------
 def train_model(sft_config_path=None):
+    """
+    Runs end-to-end SFT training and saves model artifacts.
+    Input:
+    - sft_config_path: optional path to the SFT config YAML file
+    Output:
+    - none
+    """
     (
         sft_config,
         data_config,
@@ -286,7 +347,7 @@ def train_model(sft_config_path=None):
     print("Model name:", model_name)
     print("Prepared data path:", prepared_data_path)
     print("Output directory:", output_directory)
-    set_seeds(seed)
+    helpers.set_seeds(seed)
     ds_train_raw, ds_val_raw, ds_test_raw = load_prepared_splits(prepared_data_path)
     ds_train, ds_val = format_sft_splits(ds_train_raw, ds_val_raw, system_prompt)
 
