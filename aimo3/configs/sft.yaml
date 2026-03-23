@@ -17,8 +17,8 @@ run:
 
 paths:
   data_config_path: null
-  prepared_splits_root: "/content/drive/MyDrive/Math Olympiad Competition/processed_splits/omr_aimo3"
-  output_root: "/content/drive/MyDrive/Math Olympiad Competition/models"
+  prepared_splits_root: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/processed_splits/omr_aimo3"
+  output_root: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/models"
 
 prompting:
   system_prompt: |
