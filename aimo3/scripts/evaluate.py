@@ -24,52 +24,32 @@ try:
 except ImportError:
     AutoPeftModelForCausalLM = None
 
-
-# ---------------------------
-# Path helpers
-# ---------------------------
-
-""" def get_repo_root():
-    return Path(__file__).resolve().parents[1]
-
-
-def get_evaluate_config_path():
-    return get_repo_root() / "configs" / "evaluate.yaml"
-
-
-def get_data_config_path():
-    return get_repo_root() / "configs" / "data.yaml"
-
-
-def get_sft_config_path():
-    return get_repo_root() / "configs" / "sft.yaml" """
-
-
 # ---------------------------
 # YAML loading
 # ---------------------------
-
-def load_yaml(config_path):
-    config_path = Path(config_path)
-    with open(config_path, "r") as f:
-        return yaml.safe_load(f)
-
-
 def load_configs(evaluate_config_path=None):
+    """
+        Loads and resolves all configs and paths needed for evaluation.
+    Input:
+    - evaluate_config_path: optional path to the evaluation config YAML file
+    Output:
+        - tuple: (evaluate_config, data_config, sft_config, exp_config, model_config,
+            dataset_path, model_checkpoint, output_dir)
+    """
     if evaluate_config_path is None:
         evaluate_config_path = helpers.get_config_path("evaluate.yaml")
 
-    evaluate_config = load_yaml(evaluate_config_path)
+    evaluate_config = helpers.load_yaml(evaluate_config_path)
 
     data_config_path = evaluate_config.get("paths", {}).get("data_config_path")
     if not data_config_path:
         data_config_path = helpers.get_config_path("data.yaml")
-    data_config = load_yaml(data_config_path)
+    data_config = helpers.load_yaml(data_config_path)
 
     sft_config_path = evaluate_config.get("paths", {}).get("sft_config_path")
     if not sft_config_path:
         sft_config_path = helpers.get_config_path("sft.yaml")
-    sft_config = load_yaml(sft_config_path)
+    sft_config = helpers.load_yaml(sft_config_path)
 
     exp_name = sft_config["run"]["experiment_name"]
     model_key = sft_config["run"]["model_key"]
@@ -117,14 +97,16 @@ def normalize_to_int_str(ans: Optional[str]) -> Optional[str]:
     """
     Cleans and validates a string to ensure it is a non-negative integer
     between 0 and 99999. Returns canonical string form or None if invalid.
+    Input: 
+    - ans: raw string to normalize
+    Output:
+    - s: normalized string if valid, else None
     """
     if ans is None:
         return None
-
     s = str(ans).strip()
     s = s.replace(" ", "").replace("\n", "").replace("\t", "")
     s = s.replace(",", "")
-
     if s == "":
         return None
     if s.startswith("+"):
@@ -133,7 +115,6 @@ def normalize_to_int_str(ans: Optional[str]) -> Optional[str]:
         return None
     if not s.isdigit():
         return None
-
     s = str(int(s))
     v = int(s)
     if not (0 <= v <= 99999):
@@ -144,6 +125,10 @@ def normalize_to_int_str(ans: Optional[str]) -> Optional[str]:
 def extract_final_answer(text: str) -> Optional[str]:
     """
     Extracts the last number labeled with 'FINAL_ANSWER:' if present.
+    Input:
+    - text: model generation text
+    Output:
+    - answer: extracted digit string, or None if not found
     """
     matches = FINAL_RE.findall(text)
     if matches:
@@ -153,7 +138,11 @@ def extract_final_answer(text: str) -> Optional[str]:
 
 def extract_last_int_fallback(text: str) -> Optional[str]:
     """
-    Returns the last standalone 1-5 digit integer found anywhere in the text.
+    Extracts the last standalone 1-5 digit integer found in the text.
+    Input:
+    - text: model generation text
+    Output:
+    - answer: extracted digit string, or None if not found
     """
     matches = LAST_INT_RE.findall(text)
     if not matches:
@@ -163,7 +152,11 @@ def extract_last_int_fallback(text: str) -> Optional[str]:
 
 def extract_answer(text: str) -> Optional[str]:
     """
-    Applies extraction + normalization to return the final validated answer.
+    Extracts and normalizes the final validated answer.
+    Input:
+    - text: model generation text
+    Output:
+    - answer: normalized answer string, or None if invalid/not found
     """
     raw = extract_final_answer(text)
     if raw is None:
@@ -181,6 +174,16 @@ def build_eval_prompt(
     problem_field: str = "problem",
     answer_field: str = "expected_answer",
 ):
+    """
+    Builds one evaluation prompt row from a dataset example.
+    Input:
+    - example: dataset row containing problem and expected answer
+    - system_prompt: instruction prefix prepended before the problem
+    - problem_field: key name for the problem text in example
+    - answer_field: key name for the expected answer in example
+    Output:
+    - row: dict with prompt and expected_answer fields
+    """
     problem = str(example[problem_field]).strip()
     answer = str(example[answer_field]).strip()
 
@@ -204,7 +207,14 @@ def format_eval_split(
     answer_field: str = "expected_answer",
 ) -> Dataset:
     """
-    Converts a raw prepared split into the columns expected by evaluation.
+    Converts a raw prepared split into prompt/answer rows for evaluation.
+    Input:
+    - ds_split: input dataset split
+    - system_prompt: instruction prefix added to each prompt
+    - problem_field: key name for the problem text column
+    - answer_field: key name for the expected answer column
+    Output:
+    - ds_formatted: dataset with prompt and expected_answer columns
     """
     return ds_split.map(
         build_eval_prompt,
@@ -220,9 +230,12 @@ def format_eval_split(
 
 def load_eval_split(dataset_path: str, split_name: str) -> Dataset:
     """
-    Supports:
-      - a DatasetDict saved with train/val/test
-      - a Dataset saved directly
+        Loads an evaluation split from disk.
+        Input:
+        - dataset_path: path to a saved Dataset or DatasetDict
+        - split_name: split name to load when dataset_path is a DatasetDict
+        Output:
+        - split_ds: loaded Dataset split
     """
     print("Loading evaluation dataset from:", dataset_path)
     ds = load_from_disk(dataset_path)
@@ -244,6 +257,13 @@ def load_eval_split(dataset_path: str, split_name: str) -> Dataset:
 # ---------------------------
 
 def get_inference_dtype():
+    """
+    Chooses torch dtype for inference based on available hardware.
+    Input:
+    - none
+    Output:
+    - dtype: torch dtype (bfloat16, float16, or float32)
+    """
     if torch.cuda.is_available():
         if torch.cuda.is_bf16_supported():
             return torch.bfloat16
@@ -256,9 +276,12 @@ def load_eval_model(
     trust_remote_code: bool = True,
 ):
     """
-    Loads tokenizer + model from:
-      - a PEFT/LoRA adapter directory, or
-      - a full HF model directory.
+        Loads tokenizer and model for evaluation.
+        Input:
+        - model_path: path to a PEFT adapter or full HF model checkpoint
+        - trust_remote_code: whether to allow custom remote model code
+        Output:
+        - tuple: (tokenizer, model)
     """
     tok = AutoTokenizer.from_pretrained(
         model_path,
@@ -308,7 +331,17 @@ def generate_n_solutions(
     top_p: float = 0.95,
 ) -> List[str]:
     """
-    Generates multiple sampled responses for a prompt.
+    Generates multiple sampled responses for one prompt.
+    Input:
+    - model: loaded causal language model
+    - tokenizer: tokenizer paired with the model
+    - prompt: prompt text to generate from
+    - n: number of sampled completions to generate
+    - max_new_tokens: maximum generated tokens per completion
+    - temperature: sampling temperature
+    - top_p: nucleus sampling threshold
+    Output:
+    - generations: list of decoded generated solution strings
     """
     inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
     prompt_len = inputs["input_ids"].shape[1]
@@ -336,11 +369,14 @@ def majority_vote_answer(
     generations: List[str],
 ) -> Tuple[Optional[str], Counter, List[str], float]:
     """
-    Extracts normalized answers from generated solutions and returns:
-      - best majority answer
-      - counts of all extracted answers
-      - list of extracted normalized answers
-      - agreement rate among valid extracted answers
+    Aggregates extracted answers from generations with majority voting.
+    Input:
+    - generations: list of generated solution texts
+    Output:
+    - best: most common normalized answer, or None if no valid answers
+    - counts: Counter with normalized answer frequencies
+    - extracted_norm: list of valid normalized answers
+    - agreement: majority count divided by number of valid answers
     """
     extracted_norm = []
     for generation in generations:
@@ -366,11 +402,16 @@ def solve_pass1(
     max_new_tokens: int = 512,
 ) -> Tuple[Optional[str], bool, str]:
     """
-    Generates one greedy response and extracts the answer.
-    Returns:
-      - predicted answer
-      - whether a valid answer format was extracted
-      - decoded generation text
+        Generates one greedy response and extracts its normalized answer.
+        Input:
+        - model: loaded causal language model
+        - tokenizer: tokenizer paired with the model
+        - prompt: prompt text to solve
+        - max_new_tokens: maximum generated tokens
+        Output:
+        - pred: normalized predicted answer, or None
+        - is_valid: True if pred is a valid extracted answer
+        - text: decoded generated response text
     """
     inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
     prompt_len = inputs["input_ids"].shape[1]
@@ -394,6 +435,14 @@ def solve_pass1(
 # ---------------------------
 
 def resolve_total(max_items, ds_len: int) -> int:
+    """
+    Resolves how many dataset rows to evaluate.
+    Input:
+    - max_items: optional cap on number of rows
+    - ds_len: total rows in the dataset split
+    Output:
+    - total: number of rows to evaluate
+    """
     if max_items is None:
         return ds_len
     return min(max_items, ds_len)
@@ -407,7 +456,15 @@ def eval_split_pass1(
     max_new_tokens: int = 512,
 ) -> Dict[str, float]:
     """
-    Evaluates a dataset split with greedy decoding (pass@1).
+    Evaluates one dataset split with greedy decoding (pass@1).
+    Input:
+    - model: loaded causal language model
+    - tokenizer: tokenizer paired with the model
+    - ds_split: formatted evaluation dataset split
+    - max_items: optional cap on evaluated rows
+    - max_new_tokens: maximum generated tokens per row
+    Output:
+    - metrics: dict with pass@1, format_valid_rate, and n
     """
     correct = 0
     valid = 0
@@ -445,7 +502,18 @@ def eval_split_majN(
     top_p: float = 0.95,
 ) -> Dict[str, float]:
     """
-    Evaluates a dataset split with sampled decoding and majority vote.
+    Evaluates one dataset split with sampling and majority voting.
+    Input:
+    - model: loaded causal language model
+    - tokenizer: tokenizer paired with the model
+    - ds_split: formatted evaluation dataset split
+    - n_samples: sampled generations per problem
+    - max_items: optional cap on evaluated rows
+    - max_new_tokens: maximum generated tokens per sample
+    - temperature: sampling temperature
+    - top_p: nucleus sampling threshold
+    Output:
+    - metrics: dict with maj@N accuracy and vote/format statistics
     """
     correct = 0
     problems_with_any_valid = 0
@@ -501,6 +569,13 @@ def eval_split_majN(
 # ---------------------------
 
 def run_evaluation(evaluate_config_path=None):
+    """
+    Runs the full evaluation pipeline and optionally writes a report.
+    Input:
+    - evaluate_config_path: optional path to evaluate.yaml
+    Output:
+    - results: nested dict of metadata and computed evaluation metrics
+    """
     (
         evaluate_config,
         data_config,
