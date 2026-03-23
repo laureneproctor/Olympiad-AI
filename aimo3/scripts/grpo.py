@@ -609,7 +609,3 @@ necessary settings for the GRPO training, including paths to data and checkpoint
     tokenizer.save_pretrained(trainer_config.output_dir)
 
     print("Done. Saved to:", trainer_config.output_dir)
-
-
-if __name__ == "__main__":
-    train_grpo()
