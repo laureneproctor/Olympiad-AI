@@ -330,18 +330,34 @@ def generate_n_solutions(
 
 
 def majority_vote_answer(generations: List[str]) -> Tuple[Optional[str], Counter, List[str], float]:
+    """
+    This function takes a list of generated solution texts, extracts the final answer from each using the extract_answer function,
+    and then performs a majority vote to determine the most common answer among the valid extractions.
+    Input:
+    - generations (List[str]): A list of generated solution texts from which to extract answers.
+    Output:
+    - A tuple containing:
+        - majority_answer (Optional[str]): The most common valid answer extracted from the generations, or None if no valid answers are found.
+        - counts (Counter): A Counter object that counts the occurrences of each valid extracted answer.
+        - extracted (List[str]): A list of all valid extracted answers from the generations.
+        - agreement (float): The agreement rate, calculated as the count of 
+    """
+    # List to store the valid extracted answers from the generations
     extracted = []
+    # For each generated solution text, attempt to extract a valid answer using the extract_answer function, append the valid answers to the extracted list
     for g in generations:
         ans = extract_answer(g)
         if ans is not None:
             extracted.append(ans)
-
+    # If no valid answers were extracted, return None for the majority answer, an empty Counter, an empty list of extracted answers, and 0.0 for agreement
     if not extracted:
         return None, Counter(), [], 0.0
-
+    # Use counter to count occurrences of each valid extracted answer, agreement, etc/
     counts = Counter(extracted)
     best, best_count = counts.most_common(1)[0]
     agreement = best_count / len(extracted)
+    # Return the most common valid answer (majority), the counts of all valid answers,
+    # the list of valid extracted answers, and the agreement rate
     return best, counts, extracted, agreement
 
 
@@ -356,6 +372,26 @@ def get_mining_reasons(
     has_any_valid: bool,
     criteria: dict,
 ) -> List[str]:
+    """
+    This function determines the reasons for mining a particular example based on the provided criteria.
+    It checks if the majority answer is wrong compared to the gold answer, if the agreement among valid 
+    extractions is below a specified threshold, if the format validity rate of the extractions is below a 
+    specified threshold, and if there are no valid extractions at all. For each criterion that is met,
+    it appends a corresponding reason string to the reasons list, which is then returned at the end. This 
+    allows for a detailed understanding of why an example was selected for mining based on multiple factors.
+    Input:
+    - majority_answer (Optional[str]): The most common valid answer extracted from the generations, or
+    None if no valid answers are found.
+    - gold_answer (Optional[str]): The correct answer from the dataset for comparison.
+    - agreement (float): The agreement rate among the valid extracted answers.
+    - format_validity_rate (float): The rate of valid format extractions among the generations
+    - has_any_valid (bool): A flag indicating whether there were any valid extractions at all.
+    - criteria (dict): A dictionary containing the mining criteria thresholds and flags for which criteria to
+    apply.
+    Output:
+    - List[str]: A list of reason strings indicating which mining criteria were met for this example. 
+    Possible reasons include "majority_wrong", "low_agreement", "low_format_validity",
+    """
     reasons = []
 
     majority_is_correct = (majority_answer is not None and gold_answer is not None and majority_answer == gold_answer)
@@ -363,23 +399,19 @@ def get_mining_reasons(
     if criteria.get("mine_if_majority_wrong", True):
         if not majority_is_correct:
             reasons.append("majority_wrong")
-
     if criteria.get("mine_if_low_agreement", True):
         thr = float(criteria.get("low_agreement_threshold", 0.5))
         if agreement < thr:
             reasons.append("low_agreement")
-
     if criteria.get("mine_if_low_format_validity", True):
         thr = float(criteria.get("low_format_validity_threshold", 0.5))
         if format_validity_rate < thr:
             reasons.append("low_format_validity")
-
     if criteria.get("mine_if_no_valid_extraction", True):
         if not has_any_valid:
             reasons.append("no_valid_extraction")
 
     return reasons
-
 
 # --------------------------------------------------------------------------
 # Main
@@ -396,36 +428,55 @@ def mine_failures(mine_config_path=None):
         criteria_cfg,
         reporting_cfg,
     ) = load_configs(mine_config_path)
-
+    """
+    This function orchestrates the mining process by loading the necessary configurations, 
+    setting seeds for reproducibility, loading the dataset and model, and then iterating
+    through each example in the dataset to generate solutions, extract answers, perform majority voting, 
+    and determine mining reasons based on specified criteria. It collects statistics throughout the
+    process and saves the mined dataset and a mining report at the end. The function is designed to be 
+    flexible and configurable through external YAML files, allowing for easy adjustments to the mining 
+    logic and generation parameters without modifying the code.
+    Input: 
+    - mine_config_path (str, optional): The file path to the mining configuration YAML file. If None, it will look for "mine.yaml" in the default config directory.
+    Output:
+    - This function does not return a value but performs the mining process and saves the mined dataset to disk, along with a mining report if configured to do so.
+    The mined dataset will contain examples
+    """
+    # Set seed for reproducibility, based on on configs
     seed = int(mine_config.get("run", {}).get("seed", 42))
+    # Set Seed
     helpers.set_seeds(seed)
-
+    # Obtain configurations
     k = int(generation_cfg.get("k_solutions", 8))
     max_new_tokens = int(generation_cfg.get("max_new_tokens", 512))
     temperature = float(generation_cfg.get("temperature", 0.7))
     top_p = float(generation_cfg.get("top_p", 0.95))
-
+    # Load the ds split and model + tokenizer
     ds = load_mining_split(dataset_path, dataset_split)
     tokenizer, model = load_model_and_tokenizer(model_checkpoint)
-
+    # List to store the mined rows that meet the mining criteria
     mined_rows = []
+    # Dictionary for stats of mining process
     stats = {
         "total_examples": len(ds),
         "mined_examples": 0,
         "skipped_invalid_gold": 0,
         "reasons_count": Counter(),
     }
-
+    # Iterate through rows in ds split
     for i, row in enumerate(ds):
+        # extract problem and expected answer(gold)
         problem = row.get("problem", "")
         gold_raw = row.get("expected_answer", None)
+        # Normalize gold answer to ensure it's a valid integer string or None
         gold = normalize_to_int_str(gold_raw)
-
+        # If the gold answer is invalid, skip this example and update stats
         if gold is None:
             stats["skipped_invalid_gold"] += 1
             continue
-
+        # Build the prompt for the model using the problem text
         prompt = build_prompt(problem)
+        # Generate n solutions from the model for the given prompt using the specified generation parameters
         generations = generate_n_solutions(
             model=model,
             tokenizer=tokenizer,
@@ -435,11 +486,14 @@ def mine_failures(mine_config_path=None):
             temperature=temperature,
             top_p=top_p,
         )
-
+        # Perform maj vot, counts, extract valid answers, agreement, etc.
         majority, counts, extracted, agreement = majority_vote_answer(generations)
+        # If the extracted list is not empty, set has_any_valid to True; otherwise, set it to False.
         has_any_valid = len(extracted) > 0
+        # Calculate the format validity rate as the number of valid extractions divided by
+        # k (the total number of generations), ensuring that we handle the case where k is zero to avoid division by zero errors
         format_validity_rate = len(extracted) / float(k) if k > 0 else 0.0
-
+        # Determine the reasoning for mining/
         reasons = get_mining_reasons(
             majority_answer=majority,
             gold_answer=gold,
@@ -448,11 +502,12 @@ def mine_failures(mine_config_path=None):
             has_any_valid=has_any_valid,
             criteria=criteria_cfg,
         )
-
+        # If there are reasons for mining this example, append the relevant 
+        # information to the mined_rows list and update the reasons count in stats
         if reasons:
             for r in reasons:
                 stats["reasons_count"][r] += 1
-
+            # Append a dictionary containing all below information about the example to the mined_rows list:
             mined_rows.append(
                 {
                     "prompt": prompt,
@@ -466,13 +521,17 @@ def mine_failures(mine_config_path=None):
                     "mine_reasons": reasons,
                 }
             )
-
+        # If the current index + 1 is divisible by 10, 
+        # print out a progress update indicating how many rows have been processed and
+        #  how many examples have been mined so far. This provides feedback during the mining process, especially for larger datasets.
         if (i + 1) % 10 == 0:
             print(f"Processed {i + 1}/{len(ds)} rows | mined so far: {len(mined_rows)}")
-
+    # Print final stats about mining process.
     stats["mined_examples"] = len(mined_rows)
-
+    # Ensure output exists.
     os.makedirs(output_path, exist_ok=True)
+    # If there are mined rows, create a Hugging Face Dataset from the list of mined rows; 
+    # otherwise, create an empty Dataset with the appropriate columns. 
     if mined_rows:
         mined_ds = Dataset.from_list(mined_rows)
     else:
@@ -489,15 +548,16 @@ def mine_failures(mine_config_path=None):
                 "mine_reasons": [],
             }
         )
-
+    # Save mined dataset to disk at path
     mined_ds.save_to_disk(output_path)
     print(f"Saved mined dataset to: {output_path}")
     print(f"Mined examples: {len(mined_rows)} / {len(ds)}")
-
+    # If configured to save a mining report, create a report dictionary containing all relevant 
+    # information about the mining process, including configuration paths, dataset information,
+    #  generation parameters, failure criteria, and statistics. Then save this report as a JSON file to the specified report path.
     if reporting_cfg.get("save_mining_report", True):
         report_path = reporting_cfg.get("report_path", "runs/mining_report.json")
         os.makedirs(os.path.dirname(report_path), exist_ok=True)
-
         report = {
             "config_path": str(mine_config_path if mine_config_path else helpers.get_config_path()),
             "dataset_path": dataset_path,
@@ -519,8 +579,8 @@ def mine_failures(mine_config_path=None):
                 "reasons_count": dict(stats["reasons_count"]),
             },
         }
-
+        # Save mining report as JSON to path specified in reporting config, creating directories if necessary
         with open(report_path, "w") as f:
             json.dump(report, f, indent=2)
-
+        
         print(f"Saved mining report to: {report_path}")
