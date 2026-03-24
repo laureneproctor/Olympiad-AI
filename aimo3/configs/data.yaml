@@ -80,3 +80,14 @@ experiments:
     models:
       - qwen
       - deepseekmath
+
+  exp 5:
+    seed: 42
+    N: 200000
+    splits:
+      train: 0.90
+      val: 0.5
+      test: 0.5
+    models:
+      - qwen
+      - deepseekmath
