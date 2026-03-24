@@ -86,8 +86,8 @@ experiments:
     N: 200000
     splits:
       train: 0.90
-      val: 0.5
-      test: 0.5
+      val: 0.05
+      test: 0.05
     models:
       - qwen
       - deepseekmath
