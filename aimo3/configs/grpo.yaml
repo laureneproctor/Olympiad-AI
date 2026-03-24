@@ -7,7 +7,7 @@
 # - Which RL dataset to train on (rl_train)
 run:
   seed: 42
-  experiment_name: "exp1"
+  experiment_name: "exp5"
   model_key: "qwen"
 
 paths:

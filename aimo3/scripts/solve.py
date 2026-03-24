@@ -11,31 +11,6 @@ from datasets import Dataset, load_from_disk
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from . import helpers
 
-
-# ============================================================================
-# Path helpers
-# ============================================================================
-# def get_repo_root():
-#     return Path(__file__).resolve().parents[1]
-
-
-# def get_solve_config_path():
-#     return get_repo_root() / "configs" / "solve.yaml"
-
-
-# def get_data_config_path():
-#     return get_repo_root() / "configs" / "data.yaml"
-
-
-# ============================================================================
-# YAML loading
-# ============================================================================
-# def load_yaml(config_path):
-#     config_path = Path(config_path)
-#     with open(config_path, "r") as f:
-#         return yaml.safe_load(f)
-
-
 # ============================================================================
 # Answer extraction utilities
 # ============================================================================
