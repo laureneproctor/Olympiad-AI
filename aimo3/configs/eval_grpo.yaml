@@ -4,8 +4,8 @@ run:
 paths:
   data_config_path: null
   sft_config_path: "/content/Olympiad-AI/aimo3/configs/sft.yaml"
-  model_checkpoint: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/models/grpo_qwen_exp1"
-  dataset_path: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/processed_splits/omr_aimo3/splits/100"
+  model_checkpoint: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/models/grpo_qwen_exp5"
+  dataset_path: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/processed_splits/omr_aimo3/splits/200000"
   output_dir: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/runs/evaluation_grpo_qwen"
 
 evaluation:
