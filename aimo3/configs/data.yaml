@@ -81,7 +81,7 @@ experiments:
       - qwen
       - deepseekmath
 
-  exp 5:
+  exp5:
     seed: 42
     N: 200000
     splits:
