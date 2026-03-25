@@ -199,7 +199,8 @@ def run_exp(exp_name):
     Output:
     - A Hugging Face DatasetDict object containing the training, validation, and test splits for the specified experiment.
     """
-    full_config = helpers.get_config_path("data.yaml")
+    full_config_path = helpers.get_config_path("data.yaml")
+    full_config = helpers.load_yaml(full_config_path)
     dataset_path = full_config["dataset"]["path"]
     filtering_config = full_config["dataset"]["filtering"]
     exp_config = full_config["experiments"][exp_name]
