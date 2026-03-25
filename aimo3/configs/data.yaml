@@ -44,9 +44,9 @@ experiments:
       train: 0.8
       val: 0.1
       test: 0.1
-    models:
-      - qwen
-      - deepseekmath
+    # models:
+    #   - qwen
+    #   - deepseekmath
 
   exp2:
     seed: 42
@@ -55,9 +55,9 @@ experiments:
       train: 0.8
       val: 0.1
       test: 0.1
-    models:
-      - qwen
-      - deepseekmath
+    # models:
+    #   - qwen
+    #   - deepseekmath
 
   exp3:
     seed: 42
@@ -66,9 +66,9 @@ experiments:
       train: 0.8
       val: 0.1
       test: 0.1
-    models:
-      - qwen
-      - deepseekmath
+    # models:
+    #   - qwen
+    #   - deepseekmath
 
   exp4:
     seed: 42
@@ -77,9 +77,9 @@ experiments:
       train: 0.8
       val: 0.1
       test: 0.1
-    models:
-      - qwen
-      - deepseekmath
+    # models:
+    #   - qwen
+    #   - deepseekmath
 
   exp 5:
     seed: 42
@@ -88,6 +88,6 @@ experiments:
       train: 0.90
       val: 0.05
       test: 0.05
-    models:
-      - qwen
-      - deepseekmath
+    # models:
+    #   - qwen
+    #   - deepseekmath
