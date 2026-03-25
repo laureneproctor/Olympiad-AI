@@ -214,7 +214,8 @@ def run_exp(exp_name):
     row_selection = take_n_rows(filtered, n, seed)
     ds_train_raw, ds_val_raw, ds_test_raw = split_train_val_test(row_selection, split_config, seed)
 
-    sr = helpers.get_repo_root()
-    save_dir = os.path.join(sr, "splits", str(n))
+    sft_config = helpers.load_yaml(helpers.get_config_path("sft.yaml"))
+    prepared_root = sft_config["paths"]["prepared_splits_root"]
+    save_dir = os.path.join(prepared_root, "splits", str(n))
     save_splits(ds_train_raw, ds_val_raw, ds_test_raw, save_dir)
     return DatasetDict({"train": ds_train_raw, "val": ds_val_raw, "test": ds_test_raw})
