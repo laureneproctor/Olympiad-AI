@@ -12,7 +12,7 @@
 
 run:
   seed: 42
-  experiment_name: "exp2"         # exp1 = N=100
+  experiment_name: "exp3"         # exp1 = N=100
   model_key: "deepseekmath" #"deepseekmath"       # change to "qwen" when needed
 
 paths:
