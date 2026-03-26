@@ -32,3 +32,5 @@ reporting:
   save_report: true
   report_filename: "evaluation_report_qwen_exp1.json"
   verbose: true
+  preview_examples: 3
+  preview_generation_chars: 180
