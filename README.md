@@ -71,6 +71,8 @@ eval.py (compare with baseline)
      ▼
 solve.py → Competition predictions
 ```
+<img width="962" height="630" alt="image" src="https://github.com/user-attachments/assets/2010ab71-72eb-4824-8e31-c3f6e89fa586" />
+
 ## Pipeline in Details
 
 1. Raw Dataset: NVIDIA OpenMathReasoning dataset
