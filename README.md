@@ -71,7 +71,8 @@ eval.py (compare with baseline)
      ▼
 solve.py → Competition predictions
 ```
-<img width="874" height="613" alt="image" src="https://github.com/user-attachments/assets/4478d387-51d3-4915-8154-c44e21c897ab" />
+<img width="919" height="668" alt="image" src="https://github.com/user-attachments/assets/d7628db9-bb8c-4d39-9c7e-b50c70b4fed1" />
+
 
 
 ## Pipeline in Details
