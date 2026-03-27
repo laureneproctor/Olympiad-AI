@@ -53,16 +53,11 @@ def parse_single_integer_final_answer(value):
     if not text:
         return None
 
-    # Fast path for already-clean integer strings.
+    # Strict mode: answer text must be exactly one integer token.
     if re.fullmatch(r"[+-]?\d+", text):
         return int(text)
 
-    # Fallback: allow explanatory text only when it contains exactly one integer token.
-    matches = re.findall(r"[+-]?\d+", text)
-    if len(matches) != 1:
-        return None
-
-    return int(matches[0])
+    return None
 
 
 def has_valid_integer_final_answer(row, filtering_config):
@@ -289,3 +284,59 @@ def run_exp(exp_name):
     save_dir = os.path.join(prepared_root, "splits", str(n))
     save_splits(ds_train_raw, ds_val_raw, ds_test_raw, save_dir)
     return DatasetDict({"train": ds_train_raw, "val": ds_val_raw, "test": ds_test_raw})
+
+
+def run_all_experiments(exp_names=None):
+    """
+    Run data preparation for multiple experiments while loading/filtering the dataset only once.
+
+    Input:
+    - exp_names: optional list of experiment names. If None, runs all experiments from data.yaml.
+    Output:
+    - dict mapping experiment name -> DatasetDict(train/val/test)
+    """
+    full_config_path = helpers.get_config_path("data.yaml")
+    full_config = helpers.load_yaml(full_config_path)
+    dataset_path = full_config["dataset"]["path"]
+    filtering_config = full_config["dataset"]["filtering"]
+    experiments = full_config["experiments"]
+
+    if exp_names is None:
+        selected_experiments = list(experiments.keys())
+    else:
+        selected_experiments = list(exp_names)
+        missing = [name for name in selected_experiments if name not in experiments]
+        if missing:
+            raise ValueError(f"Unknown experiment names: {missing}")
+
+    cot_data = load_data(dataset_path)
+    filtered = apply_filter(cot_data, filtering_config)
+
+    sft_config = helpers.load_yaml(helpers.get_config_path("sft.yaml"))
+    prepared_root = sft_config["paths"]["prepared_splits_root"]
+
+    # Reuse one deterministic shuffle per seed so repeated experiments are fast.
+    shuffled_by_seed = {}
+    outputs = {}
+
+    for exp_name in selected_experiments:
+        print(f"Rebuilding {exp_name} ...")
+        exp_config = experiments[exp_name]
+        seed = exp_config["seed"]
+        n = exp_config["N"]
+        split_config = exp_config["splits"]
+
+        if seed not in shuffled_by_seed:
+            shuffled_by_seed[seed] = filtered.shuffle(seed=seed)
+
+        shuffled = shuffled_by_seed[seed]
+        n_eff = min(n, len(shuffled))
+        row_selection = shuffled.select(range(n_eff))
+
+        ds_train_raw, ds_val_raw, ds_test_raw = split_train_val_test(row_selection, split_config, seed)
+        save_dir = os.path.join(prepared_root, "splits", str(n))
+        save_splits(ds_train_raw, ds_val_raw, ds_test_raw, save_dir)
+
+        outputs[exp_name] = DatasetDict({"train": ds_train_raw, "val": ds_val_raw, "test": ds_test_raw})
+
+    return outputs
