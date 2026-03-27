@@ -14,8 +14,103 @@ from datasets import load_from_disk, Dataset, DatasetDict
 from pathlib import Path
 import os
 import random
+import re
 import yaml
 from . import helpers
+
+
+FINAL_ANSWER_CONFIG_KEYS = {
+    "non_null_columns",
+    "require_single_integer_final_answer",
+    "final_answer_column",
+    "final_answer_min",
+    "final_answer_max",
+    "debug_print_dropped_samples",
+    "debug_dropped_sample_limit",
+    "debug_dropped_scan_limit",
+}
+
+
+def parse_single_integer_final_answer(value):
+    """
+    Parse a value as exactly one integer answer.
+
+    Returns:
+        int | None: Parsed integer, or None if parsing fails.
+    """
+    if value is None or isinstance(value, bool):
+        return None
+
+    if isinstance(value, int):
+        return value
+
+    if isinstance(value, float):
+        if value.is_integer():
+            return int(value)
+        return None
+
+    if not isinstance(value, str):
+        return None
+
+    text = value.strip()
+    if not text:
+        return None
+
+    # Strict mode: answer text must be exactly one integer token.
+    if re.fullmatch(r"[+-]?\d+", text):
+        return int(text)
+
+    return None
+
+
+def has_valid_integer_final_answer(row, filtering_config):
+    """
+    Check whether the row has a parseable single integer final answer within bounds.
+    """
+    require_integer = filtering_config.get("require_single_integer_final_answer", True)
+    if not require_integer:
+        return True
+
+    answer_col = filtering_config.get("final_answer_column", "expected_answer")
+    min_value = filtering_config.get("final_answer_min", 0)
+    max_value = filtering_config.get("final_answer_max", 99999)
+
+    parsed = parse_single_integer_final_answer(row.get(answer_col))
+    if parsed is None:
+        return False
+
+    return min_value <= parsed <= max_value
+
+
+def get_drop_reason(row, filtering_config):
+    """
+    Return a short reason string for why a row would be dropped by filter_rows.
+    """
+    for key, value in filtering_config.items():
+        if key in FINAL_ANSWER_CONFIG_KEYS:
+            continue
+        if row.get(key) != value:
+            return f"mismatch:{key}"
+
+    for col in filtering_config.get("non_null_columns", []):
+        val = row.get(col)
+        if val is None:
+            return f"null:{col}"
+        if isinstance(val, str) and not val.strip():
+            return f"blank:{col}"
+
+    require_integer = filtering_config.get("require_single_integer_final_answer", True)
+    if require_integer:
+        answer_col = filtering_config.get("final_answer_column", "expected_answer")
+        min_value = filtering_config.get("final_answer_min", 0)
+        max_value = filtering_config.get("final_answer_max", 99999)
+        parsed = parse_single_integer_final_answer(row.get(answer_col))
+        if parsed is None:
+            return f"invalid_integer:{answer_col}"
+        if not (min_value <= parsed <= max_value):
+            return f"out_of_range:{answer_col}"
+
+    return "unknown"
 
 
 def load_data(dataset_path):
@@ -47,7 +142,7 @@ def filter_rows(row, filtering_config):
         - A boolean value indicating whether the row meets the filtering criteria (True) or not (False).
     """
     for key, value in filtering_config.items():
-        if key == "non_null_columns":
+        if key in FINAL_ANSWER_CONFIG_KEYS:
             continue
         if row.get(key) != value:
             return False
@@ -57,6 +152,10 @@ def filter_rows(row, filtering_config):
             return False
         if isinstance(val, str) and not val.strip():
             return False
+
+    if not has_valid_integer_final_answer(row, filtering_config):
+        return False
+
     return True
 
 def apply_filter(cot_data, filtering_config):
@@ -81,6 +180,35 @@ def apply_filter(cot_data, filtering_config):
         desc="Filtering rows"
     )
     print("Filtered size:", len(filtered))
+
+    if filtering_config.get("debug_print_dropped_samples", False):
+        sample_limit = int(filtering_config.get("debug_dropped_sample_limit", 10))
+        scan_limit = int(filtering_config.get("debug_dropped_scan_limit", 50000))
+        scan_count = min(len(cot_data), max(0, scan_limit))
+        answer_col = filtering_config.get("final_answer_column", "expected_answer")
+
+        dropped_samples = []
+        for idx in range(scan_count):
+            row = cot_data[idx]
+            if filter_rows(row, filtering_config):
+                continue
+
+            dropped_samples.append({
+                "idx": idx,
+                "reason": get_drop_reason(row, filtering_config),
+                "expected_answer": row.get(answer_col),
+            })
+            if len(dropped_samples) >= sample_limit:
+                break
+
+        print(
+            f"Dropped sample preview (first {len(dropped_samples)} from first {scan_count} scanned rows):"
+        )
+        for sample in dropped_samples:
+            print(
+                f"  idx={sample['idx']} reason={sample['reason']} expected_answer={repr(sample['expected_answer'])}"
+            )
+
     return filtered
 
 # --------------------------------------------------------------------------------
@@ -199,7 +327,8 @@ def run_exp(exp_name):
     Output:
     - A Hugging Face DatasetDict object containing the training, validation, and test splits for the specified experiment.
     """
-    full_config = helpers.get_config_path("data.yaml")
+    full_config_path = helpers.get_config_path("data.yaml")
+    full_config = helpers.load_yaml(full_config_path)
     dataset_path = full_config["dataset"]["path"]
     filtering_config = full_config["dataset"]["filtering"]
     exp_config = full_config["experiments"][exp_name]
@@ -213,7 +342,64 @@ def run_exp(exp_name):
     row_selection = take_n_rows(filtered, n, seed)
     ds_train_raw, ds_val_raw, ds_test_raw = split_train_val_test(row_selection, split_config, seed)
 
-    sr = helpers.get_repo_root()
-    save_dir = os.path.join(sr, "splits", str(n))
+    sft_config = helpers.load_yaml(helpers.get_config_path("sft.yaml"))
+    prepared_root = sft_config["paths"]["prepared_splits_root"]
+    save_dir = os.path.join(prepared_root, "splits", str(n))
     save_splits(ds_train_raw, ds_val_raw, ds_test_raw, save_dir)
     return DatasetDict({"train": ds_train_raw, "val": ds_val_raw, "test": ds_test_raw})
+
+
+def run_all_experiments(exp_names=None):
+    """
+    Run data preparation for multiple experiments while loading/filtering the dataset only once.
+
+    Input:
+    - exp_names: optional list of experiment names. If None, runs all experiments from data.yaml.
+    Output:
+    - dict mapping experiment name -> DatasetDict(train/val/test)
+    """
+    full_config_path = helpers.get_config_path("data.yaml")
+    full_config = helpers.load_yaml(full_config_path)
+    dataset_path = full_config["dataset"]["path"]
+    filtering_config = full_config["dataset"]["filtering"]
+    experiments = full_config["experiments"]
+
+    if exp_names is None:
+        selected_experiments = list(experiments.keys())
+    else:
+        selected_experiments = list(exp_names)
+        missing = [name for name in selected_experiments if name not in experiments]
+        if missing:
+            raise ValueError(f"Unknown experiment names: {missing}")
+
+    cot_data = load_data(dataset_path)
+    filtered = apply_filter(cot_data, filtering_config)
+
+    sft_config = helpers.load_yaml(helpers.get_config_path("sft.yaml"))
+    prepared_root = sft_config["paths"]["prepared_splits_root"]
+
+    # Reuse one deterministic shuffle per seed so repeated experiments are fast.
+    shuffled_by_seed = {}
+    outputs = {}
+
+    for exp_name in selected_experiments:
+        print(f"Rebuilding {exp_name} ...")
+        exp_config = experiments[exp_name]
+        seed = exp_config["seed"]
+        n = exp_config["N"]
+        split_config = exp_config["splits"]
+
+        if seed not in shuffled_by_seed:
+            shuffled_by_seed[seed] = filtered.shuffle(seed=seed)
+
+        shuffled = shuffled_by_seed[seed]
+        n_eff = min(n, len(shuffled))
+        row_selection = shuffled.select(range(n_eff))
+
+        ds_train_raw, ds_val_raw, ds_test_raw = split_train_val_test(row_selection, split_config, seed)
+        save_dir = os.path.join(prepared_root, "splits", str(n))
+        save_splits(ds_train_raw, ds_val_raw, ds_test_raw, save_dir)
+
+        outputs[exp_name] = DatasetDict({"train": ds_train_raw, "val": ds_val_raw, "test": ds_test_raw})
+
+    return outputs

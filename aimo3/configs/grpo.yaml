@@ -12,8 +12,8 @@ run:
 
 paths:
   data_config_path: null
-  starting_checkpoint: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/models/sft_qwen_exp1"
-  rl_train_path: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/rl_train/exp1_qwen"
+  starting_checkpoint: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/models/sft_qwen_exp5"
+  rl_train_path: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/rl_train/exp5_qwen"
   output_root: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/models"
 
 prompting:
@@ -51,12 +51,12 @@ training:
   gradient_accumulation_steps: 4
   num_train_epochs: 1
   learning_rate: 5.0e-6
-  max_prompt_length: 512
-  max_completion_length: 512
-  group_size: 4
+  max_prompt_length: 384
+  max_completion_length: 256
+  group_size: 2
   beta: 0.04
-  logging_steps: 1
-  save_steps: 50
+  logging_steps: 20
+  save_steps: 500
   save_total_limit: 1
   bf16: true
   gradient_checkpointing: true

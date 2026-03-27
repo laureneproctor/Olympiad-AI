@@ -9,10 +9,10 @@ run:
 
 paths:
   data_config_path: null
-  model_checkpoint: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/models/sft_qwen_exp5"
+  model_checkpoint: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/models/sft_qwen_exp1"
   dataset_path: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/processed_splits/omr_aimo3/splits/100"
   dataset_split: "val"
-  output_path: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/rl_train/exp1_qwen"
+  output_path: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/rl_train/mined_qwen_exp1"
 
 generation:
   k_solutions: 8
@@ -30,4 +30,4 @@ failure_criteria:
 
 reporting:
   save_mining_report: true
-  report_path: "/content/drive/MyDrive/Math Olympiad Competition/runs/mining_report_exp1_qwen.json"
+  report_path: "/content/drive/MyDrive/Math Olympiad Competition/runs/mining_report_qwen_exp1.json"

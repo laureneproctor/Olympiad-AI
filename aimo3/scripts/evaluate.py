@@ -115,6 +115,7 @@ def normalize_to_int_str(ans: Optional[str]) -> Optional[str]:
         return None
     if not s.isdigit():
         return None
+
     s = str(int(s))
     v = int(s)
     if not (0 <= v <= 99999):
@@ -564,6 +565,92 @@ def eval_split_majN(
     }
 
 
+def print_preview_examples(
+    model,
+    tokenizer,
+    ds_raw: Dataset,
+    ds_eval: Dataset,
+    n_examples: int,
+    problem_field: str,
+    answer_field: str,
+    pass1_max_new_tokens: int,
+    n_samples: int,
+    majn_max_new_tokens: int,
+    majn_temperature: float,
+    majn_top_p: float,
+    generation_preview_chars: int = 180,
+):
+    """
+    Prints a small qualitative preview with gold answer, pass@1, and maj@N details.
+    Input:
+    - model/tokenizer: loaded inference components
+    - ds_raw: original split with problem/answer fields
+    - ds_eval: formatted split with prompts
+    - n_examples: number of examples to print
+    - problem_field/answer_field: source column names in ds_raw
+    - pass1_max_new_tokens: generation length for pass@1 preview
+    - n_samples: number of samples for maj@N preview
+    - majn_max_new_tokens/majn_temperature/majn_top_p: sampling params
+    - generation_preview_chars: truncation length for generation text snippets
+    Output:
+    - none
+    """
+    total = min(int(n_examples), len(ds_eval))
+    if total <= 0:
+        return
+
+    print("\n=== Preview Examples ===")
+    for i in range(total):
+        problem_text = str(ds_raw[i].get(problem_field, ""))
+        gt = normalize_to_int_str(ds_raw[i].get(answer_field, None))
+        prompt = ds_eval[i]["prompt"]
+
+        pass1_pred, _pass1_valid, pass1_text = solve_pass1(
+            model=model,
+            tokenizer=tokenizer,
+            prompt=prompt,
+            max_new_tokens=pass1_max_new_tokens,
+        )
+        pass1_correct = (
+            pass1_pred is not None and gt is not None and pass1_pred == gt
+        )
+
+        generations = generate_n_solutions(
+            model=model,
+            tokenizer=tokenizer,
+            prompt=prompt,
+            n=n_samples,
+            max_new_tokens=majn_max_new_tokens,
+            temperature=majn_temperature,
+            top_p=majn_top_p,
+        )
+        maj_pred, vote_counts, extracted_norm, agreement = majority_vote_answer(generations)
+        maj_correct = maj_pred is not None and gt is not None and maj_pred == gt
+
+        print(f"\n--- Example {i + 1}/{total} ---")
+        print("Gold:", gt)
+        print("Pass@1 pred:", pass1_pred, "| correct:", pass1_correct)
+        print("Maj@N pred:", maj_pred, "| correct:", maj_correct)
+        print("Agreement:", round(float(agreement), 4), "| vote_counts:", dict(vote_counts))
+
+        problem_preview = problem_text.replace("\n", " ")
+        print("Problem preview:", problem_preview[:220])
+
+        pass1_preview = pass1_text.replace("\n", " ")
+        print("Pass@1 text preview:", pass1_preview[:generation_preview_chars])
+
+        print("Sampled generations (extracted answer | matches gold):")
+        for j, generation_text in enumerate(generations, start=1):
+            ans = extract_answer(generation_text)
+            is_match = (ans is not None and gt is not None and ans == gt)
+            gen_preview = generation_text.replace("\n", " ")
+            print(
+                f"  [{j}] ans={ans} | match={is_match} | text={gen_preview[:generation_preview_chars]}"
+            )
+
+        print("Valid extracted answers:", extracted_norm)
+
+
 # ---------------------------
 # Main runner
 # ---------------------------
@@ -649,6 +736,24 @@ def run_evaluation(evaluate_config_path=None):
             max_new_tokens=eval_yaml.get("majn_max_new_tokens", 512),
             temperature=eval_yaml.get("majn_temperature", 0.7),
             top_p=eval_yaml.get("majn_top_p", 0.95),
+        )
+
+    preview_examples = int(reporting_yaml.get("preview_examples", 0))
+    if preview_examples > 0:
+        print_preview_examples(
+            model=model,
+            tokenizer=tokenizer,
+            ds_raw=ds_raw,
+            ds_eval=ds_eval,
+            n_examples=preview_examples,
+            problem_field=problem_field,
+            answer_field=answer_field,
+            pass1_max_new_tokens=int(eval_yaml.get("pass1_max_new_tokens", 512)),
+            n_samples=int(eval_yaml.get("majn_n_samples", 8)),
+            majn_max_new_tokens=int(eval_yaml.get("majn_max_new_tokens", 512)),
+            majn_temperature=float(eval_yaml.get("majn_temperature", 0.7)),
+            majn_top_p=float(eval_yaml.get("majn_top_p", 0.95)),
+            generation_preview_chars=int(reporting_yaml.get("preview_generation_chars", 180)),
         )
 
     if reporting_yaml.get("verbose", True):
