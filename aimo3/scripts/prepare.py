@@ -14,8 +14,74 @@ from datasets import load_from_disk, Dataset, DatasetDict
 from pathlib import Path
 import os
 import random
+import re
 import yaml
 from . import helpers
+
+
+FINAL_ANSWER_CONFIG_KEYS = {
+    "non_null_columns",
+    "require_single_integer_final_answer",
+    "final_answer_column",
+    "final_answer_min",
+    "final_answer_max",
+}
+
+
+def parse_single_integer_final_answer(value):
+    """
+    Parse a value as exactly one integer answer.
+
+    Returns:
+        int | None: Parsed integer, or None if parsing fails.
+    """
+    if value is None or isinstance(value, bool):
+        return None
+
+    if isinstance(value, int):
+        return value
+
+    if isinstance(value, float):
+        if value.is_integer():
+            return int(value)
+        return None
+
+    if not isinstance(value, str):
+        return None
+
+    text = value.strip()
+    if not text:
+        return None
+
+    # Fast path for already-clean integer strings.
+    if re.fullmatch(r"[+-]?\d+", text):
+        return int(text)
+
+    # Fallback: allow explanatory text only when it contains exactly one integer token.
+    matches = re.findall(r"[+-]?\d+", text)
+    if len(matches) != 1:
+        return None
+
+    return int(matches[0])
+
+
+def has_valid_integer_final_answer(row, filtering_config):
+    """
+    Check whether the row has a parseable single integer final answer within bounds.
+    """
+    require_integer = filtering_config.get("require_single_integer_final_answer", True)
+    if not require_integer:
+        return True
+
+    answer_col = filtering_config.get("final_answer_column", "expected_answer")
+    min_value = filtering_config.get("final_answer_min", 0)
+    max_value = filtering_config.get("final_answer_max", 99999)
+
+    parsed = parse_single_integer_final_answer(row.get(answer_col))
+    if parsed is None:
+        return False
+
+    return min_value <= parsed <= max_value
 
 
 def load_data(dataset_path):
@@ -47,7 +113,7 @@ def filter_rows(row, filtering_config):
         - A boolean value indicating whether the row meets the filtering criteria (True) or not (False).
     """
     for key, value in filtering_config.items():
-        if key == "non_null_columns":
+        if key in FINAL_ANSWER_CONFIG_KEYS:
             continue
         if row.get(key) != value:
             return False
@@ -57,6 +123,10 @@ def filter_rows(row, filtering_config):
             return False
         if isinstance(val, str) and not val.strip():
             return False
+
+    if not has_valid_integer_final_answer(row, filtering_config):
+        return False
+
     return True
 
 def apply_filter(cot_data, filtering_config):

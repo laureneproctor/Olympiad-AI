@@ -2,6 +2,10 @@ dataset:
   path: "/content/drive/MyDrive/Math Olympiad Competition/datasets/OpenMathReasoning_cot"
   filtering:
     problem_type: "has_answer_extracted"
+    require_single_integer_final_answer: true
+    final_answer_column: "expected_answer"
+    final_answer_min: 0
+    final_answer_max: 99999
     non_null_columns:
       - expected_answer
       - generated_solution

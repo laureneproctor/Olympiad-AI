@@ -114,7 +114,18 @@ def normalize_to_int_str(ans: Optional[str]) -> Optional[str]:
     if s.startswith("-"):
         return None
     if not s.isdigit():
-        return None
+        # Keep evaluation ground-truth parsing aligned with preprocessing:
+        # allow exactly one integer token in explanatory text.
+        tokens = re.findall(r"[+-]?\d+", s)
+        if len(tokens) != 1:
+            return None
+        token = tokens[0]
+        if token.startswith("+"):
+            token = token[1:]
+        if token.startswith("-"):
+            return None
+        s = token
+
     s = str(int(s))
     v = int(s)
     if not (0 <= v <= 99999):
