@@ -19,6 +19,8 @@ paths:
   data_config_path: null
   prepared_splits_root: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/processed_splits/omr_aimo3"
   output_root: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/models"
+  starting_checkpoint: null
+  resume_from_checkpoint: null
 
 prompting:
   system_prompt: |

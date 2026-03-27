@@ -192,16 +192,15 @@ def maybe_get_quantization_config(quantization_yaml):
         bnb_4bit_compute_dtype=compute_dtype,
     )
 
-def load_model(model_config, quantization_yaml):
+def load_model(model_name_or_path, quantization_yaml):
     """
     Loads model with optional 4-bit quantization and k-bit prep.
     Input:
-    - model_config: selected model config section from data config
+    - model_name_or_path: HF model id or local checkpoint path
     - quantization_yaml: quantization settings from SFT config
     Output:
     - model: loaded causal language model ready for SFT
     """
-    model_name = model_config["name"]
     quantization_config = maybe_get_quantization_config(quantization_yaml)
     model_kwargs = {"trust_remote_code": True,
                     }
@@ -209,7 +208,7 @@ def load_model(model_config, quantization_yaml):
         model_kwargs["quantization_config"] = quantization_config
         model_kwargs["device_map"] = "auto"
     model = AutoModelForCausalLM.from_pretrained(
-        model_name,
+        model_name_or_path,
         **model_kwargs,
     )
     if quantization_config is not None:
@@ -341,18 +340,25 @@ def train_model(sft_config_path=None):
     seed = sft_config["run"]["seed"]
     system_prompt = sft_config["prompting"]["system_prompt"]
     model_name = model_config["name"]
+    paths_yaml = sft_config.get("paths", {})
+    starting_checkpoint = paths_yaml.get("starting_checkpoint")
+    resume_from_checkpoint = paths_yaml.get("resume_from_checkpoint")
+    model_init_path = starting_checkpoint if starting_checkpoint else model_name
 
     print("Experiment:", sft_config["run"]["experiment_name"])
     print("Model key:", sft_config["run"]["model_key"])
     print("Model name:", model_name)
+    print("Model init path:", model_init_path)
     print("Prepared data path:", prepared_data_path)
     print("Output directory:", output_directory)
+    if resume_from_checkpoint:
+        print("Resuming trainer state from:", resume_from_checkpoint)
     helpers.set_seeds(seed)
     ds_train_raw, ds_val_raw, ds_test_raw = load_prepared_splits(prepared_data_path)
     ds_train, ds_val = format_sft_splits(ds_train_raw, ds_val_raw, system_prompt)
 
-    tok = load_tokenizer(model_name)
-    model = load_model(model_config, sft_config["quantization"])
+    tok = load_tokenizer(model_init_path)
+    model = load_model(model_init_path, sft_config["quantization"])
     peft_config = build_peft_config(sft_config["lora"])
     sft_trainer_config = build_sft_config(sft_config["training"], output_directory)
 
@@ -373,7 +379,10 @@ def train_model(sft_config_path=None):
     peft_config=peft_config,
     )
     print("Starting training")
-    trainer.train()
+    if resume_from_checkpoint:
+        trainer.train(resume_from_checkpoint=resume_from_checkpoint)
+    else:
+        trainer.train()
 
     print("Saving model + tokenizer")
     trainer.save_model(sft_trainer_config.output_dir)
