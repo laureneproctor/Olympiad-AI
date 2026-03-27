@@ -25,6 +25,9 @@ FINAL_ANSWER_CONFIG_KEYS = {
     "final_answer_column",
     "final_answer_min",
     "final_answer_max",
+    "debug_print_dropped_samples",
+    "debug_dropped_sample_limit",
+    "debug_dropped_scan_limit",
 }
 
 
@@ -77,6 +80,37 @@ def has_valid_integer_final_answer(row, filtering_config):
         return False
 
     return min_value <= parsed <= max_value
+
+
+def get_drop_reason(row, filtering_config):
+    """
+    Return a short reason string for why a row would be dropped by filter_rows.
+    """
+    for key, value in filtering_config.items():
+        if key in FINAL_ANSWER_CONFIG_KEYS:
+            continue
+        if row.get(key) != value:
+            return f"mismatch:{key}"
+
+    for col in filtering_config.get("non_null_columns", []):
+        val = row.get(col)
+        if val is None:
+            return f"null:{col}"
+        if isinstance(val, str) and not val.strip():
+            return f"blank:{col}"
+
+    require_integer = filtering_config.get("require_single_integer_final_answer", True)
+    if require_integer:
+        answer_col = filtering_config.get("final_answer_column", "expected_answer")
+        min_value = filtering_config.get("final_answer_min", 0)
+        max_value = filtering_config.get("final_answer_max", 99999)
+        parsed = parse_single_integer_final_answer(row.get(answer_col))
+        if parsed is None:
+            return f"invalid_integer:{answer_col}"
+        if not (min_value <= parsed <= max_value):
+            return f"out_of_range:{answer_col}"
+
+    return "unknown"
 
 
 def load_data(dataset_path):
@@ -146,6 +180,35 @@ def apply_filter(cot_data, filtering_config):
         desc="Filtering rows"
     )
     print("Filtered size:", len(filtered))
+
+    if filtering_config.get("debug_print_dropped_samples", False):
+        sample_limit = int(filtering_config.get("debug_dropped_sample_limit", 10))
+        scan_limit = int(filtering_config.get("debug_dropped_scan_limit", 50000))
+        scan_count = min(len(cot_data), max(0, scan_limit))
+        answer_col = filtering_config.get("final_answer_column", "expected_answer")
+
+        dropped_samples = []
+        for idx in range(scan_count):
+            row = cot_data[idx]
+            if filter_rows(row, filtering_config):
+                continue
+
+            dropped_samples.append({
+                "idx": idx,
+                "reason": get_drop_reason(row, filtering_config),
+                "expected_answer": row.get(answer_col),
+            })
+            if len(dropped_samples) >= sample_limit:
+                break
+
+        print(
+            f"Dropped sample preview (first {len(dropped_samples)} from first {scan_count} scanned rows):"
+        )
+        for sample in dropped_samples:
+            print(
+                f"  idx={sample['idx']} reason={sample['reason']} expected_answer={repr(sample['expected_answer'])}"
+            )
+
     return filtered
 
 # --------------------------------------------------------------------------------

@@ -6,6 +6,9 @@ dataset:
     final_answer_column: "expected_answer"
     final_answer_min: 0
     final_answer_max: 99999
+    debug_print_dropped_samples: true
+    debug_dropped_sample_limit: 12
+    debug_dropped_scan_limit: 60000
     non_null_columns:
       - expected_answer
       - generated_solution
@@ -81,17 +84,6 @@ experiments:
       train: 0.8
       val: 0.1
       test: 0.1
-    models:
-      - qwen
-      - deepseekmath
-
-  exp5:
-    seed: 42
-    N: 200000
-    splits:
-      train: 0.90
-      val: 0.05
-      test: 0.05
     models:
       - qwen
       - deepseekmath
