@@ -13,7 +13,7 @@ run:
 paths:
   data_config_path: null
   starting_checkpoint: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/models/sft_qwen_exp1"
-  rl_train_path: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/rl_train/qwen_exp1"
+  rl_train_path: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/rl_train/mined_sqwen_exp1"
   output_root: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/models"
 
 prompting:
