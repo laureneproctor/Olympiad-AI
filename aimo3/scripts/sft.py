@@ -202,17 +202,25 @@ def load_model(model_name_or_path, quantization_yaml):
     - model: loaded causal language model ready for SFT
     """
     quantization_config = maybe_get_quantization_config(quantization_yaml)
-    model_kwargs = {"trust_remote_code": True,
-                    }
+
+    model_kwargs = {
+        "trust_remote_code": True,
+        "attn_implementation": "flash_attention_2",
+        "torch_dtype": torch.bfloat16,
+    }
+
     if quantization_config is not None:
         model_kwargs["quantization_config"] = quantization_config
         model_kwargs["device_map"] = "auto"
+
     model = AutoModelForCausalLM.from_pretrained(
         model_name_or_path,
         **model_kwargs,
     )
+
     if quantization_config is not None:
         model = prepare_model_for_kbit_training(model)
+
     model.config.use_cache = False
     return model
 
