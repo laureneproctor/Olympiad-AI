@@ -57,17 +57,6 @@ experiments:
 
   exp2:
     seed: 42
-    N: 1000
-    splits:
-      train: 0.8
-      val: 0.1
-      test: 0.1
-    # models:
-    #   - qwen
-    #   - deepseekmath
-
-  exp3:
-    seed: 42
     N: 10000
     splits:
       train: 0.8
@@ -76,14 +65,3 @@ experiments:
     # models:
     #   - qwen
     #   - deepseekmath
-
-  exp4:
-    seed: 42
-    N: 100000
-    splits:
-      train: 0.8
-      val: 0.1
-      test: 0.1
-    models:
-      - qwen
-      - deepseekmath
