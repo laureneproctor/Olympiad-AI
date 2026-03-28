@@ -57,7 +57,7 @@ experiments:
 
   exp2:
     seed: 42
-    N: 10000
+    N: 100000
     splits:
       train: 0.8
       val: 0.1
