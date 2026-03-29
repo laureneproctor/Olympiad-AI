@@ -428,6 +428,7 @@ def build_grpo_training_config(training_yaml, output_directory):
     }
 
     optional_keys = [
+        "optim",
         "max_steps",
         "warmup_steps",
         "lr_scheduler_type",

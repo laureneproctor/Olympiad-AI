@@ -280,6 +280,8 @@ def build_sft_config(training_yaml, output_directory):
         config_kwargs["gradient_checkpointing"] = training_yaml["gradient_checkpointing"]
     if "packing" in training_yaml:
         config_kwargs["packing"] = training_yaml["packing"]
+    if "optim" in training_yaml:
+        config_kwargs["optim"] = training_yaml["optim"]
 
     return SFTConfig(**config_kwargs)
 

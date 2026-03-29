@@ -51,6 +51,7 @@ training:
   gradient_accumulation_steps: 4
   num_train_epochs: 1
   learning_rate: 5.0e-6
+  optim: "adamw_torch"
   max_prompt_length: 384
   max_completion_length: 256
   group_size: 2
