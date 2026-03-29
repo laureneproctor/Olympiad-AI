@@ -6,13 +6,9 @@
 # - SFT Params
 # - Output checkpoint directory (REVIEW)
 
-# Defines one SFT run
-# - choose experiment_name (exp1/exp2/exp3/exp4)
-# - choose model_key (qwen/deepseekmath)
-
 run:
   seed: 42
-  experiment_name: "exp1"         # exp1 = N=100
+  experiment_name: "exp2"         # exp1 = N=100
   model_key: "qwen" #"deepseekmath"       # change to "qwen" when needed
 
 paths:
