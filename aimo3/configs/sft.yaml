@@ -79,4 +79,4 @@ training:
   bf16: true
   gradient_checkpointing: true
   report_to: []
-  packing: true
+  packing: false
