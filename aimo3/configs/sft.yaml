@@ -9,14 +9,14 @@
 run:
   seed: 42
   experiment_name: "exp2"         # exp1 = N=100
-  model_key: "qwen" #"deepseekmath"       # change to "qwen" when needed
+  model_key: "deepseekmath"
 
 paths:
   data_config_path: null
   prepared_splits_root: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/processed_splits/omr_aimo3"
   output_root: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/models"
-  starting_checkpoint: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/models/sft_qwen_exp2/checkpoint-12000"
-  resume_from_checkpoint: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/models/sft_qwen_exp2/checkpoint-12000"
+  starting_checkpoint: null
+  resume_from_checkpoint: null
 
 prompting:
   system_prompt: |
