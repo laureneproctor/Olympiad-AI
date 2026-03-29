@@ -9,6 +9,7 @@ from typing import Dict, List, Optional, Tuple
 import torch
 import yaml
 from datasets import Dataset, load_from_disk
+from tqdm import tqdm
 from . import helpers
 
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -463,8 +464,8 @@ def mine_failures(mine_config_path=None):
         "skipped_invalid_gold": 0,
         "reasons_count": Counter(),
     }
-    # Iterate through rows in ds split
-    for i, row in enumerate(ds):
+    # Iterate through rows in ds split with progress bar
+    for i, row in enumerate(tqdm(ds, desc="Mining examples", unit="example")):
         # extract problem and expected answer(gold)
         problem = row.get("problem", "")
         gold_raw = row.get("expected_answer", None)
@@ -521,11 +522,6 @@ def mine_failures(mine_config_path=None):
                     "mine_reasons": reasons,
                 }
             )
-        # If the current index + 1 is divisible by 10, 
-        # print out a progress update indicating how many rows have been processed and
-        #  how many examples have been mined so far. This provides feedback during the mining process, especially for larger datasets.
-        if (i + 1) % 10 == 0:
-            print(f"Processed {i + 1}/{len(ds)} rows | mined so far: {len(mined_rows)}")
     # Print final stats about mining process.
     stats["mined_examples"] = len(mined_rows)
     # Ensure output exists.

@@ -16,6 +16,7 @@ from typing import Optional, List, Tuple, Dict
 import torch
 import yaml
 from datasets import Dataset, load_from_disk
+from tqdm import tqdm
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from . import helpers
 
@@ -471,7 +472,7 @@ def eval_split_pass1(
     valid = 0
     total = resolve_total(max_items, len(ds_split))
 
-    for i in range(total):
+    for i in tqdm(range(total), desc="Pass@1 Evaluation", total=total, unit="example"):
         pred, is_valid, _ = solve_pass1(
             model=model,
             tokenizer=tokenizer,
@@ -524,7 +525,7 @@ def eval_split_majN(
 
     total = resolve_total(max_items, len(ds_split))
 
-    for i in range(total):
+    for i in tqdm(range(total), desc=f"Maj@{n_samples} Evaluation", total=total, unit="example"):
         prompt = ds_split[i]["prompt"]
         gt = normalize_to_int_str(ds_split[i]["expected_answer"])
 
