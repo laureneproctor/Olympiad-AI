@@ -65,9 +65,9 @@ training:
   max_seq_length: 2048
   per_device_train_batch_size: 1
   per_device_eval_batch_size: 1
-  gradient_accumulation_steps: 8
+  gradient_accumulation_steps: 4
   num_train_epochs: 1
-  learning_rate: 2.0e-5
+  learning_rate: 4.736621101949811e-05
   optim: "adamw_torch"
   warmup_steps: 50
   logging_steps: 50
