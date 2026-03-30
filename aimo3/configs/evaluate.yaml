@@ -12,9 +12,9 @@ run:
 paths:
   data_config_path: null
   sft_config_path: "/content/Olympiad-AI/aimo3/configs/sft.yaml"
-  model_checkpoint: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/models/sft_deepseekmath_exp2"
+  model_checkpoint: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/models/sft_qwen_exp2"
   dataset_path: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/processed_splits/omr_aimo3/splits/100000"
-  output_dir: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/runs/evaluation_deepseekmath_exp2"
+  output_dir: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/runs/evaluation_qwen_exp2_second"
 
 evaluation:
   split: "test"
