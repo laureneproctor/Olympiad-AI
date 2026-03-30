@@ -651,7 +651,94 @@ def print_preview_examples(
 
         print("Valid extracted answers:", extracted_norm)
 
+def print_differing_examples_pass1(
+    baseline_model,
+    baseline_tokenizer,
+    sft_model,
+    sft_tokenizer,
+    ds_raw: Dataset,
+    ds_eval: Dataset,
+    n_examples: int,
+    problem_field: str,
+    answer_field: str,
+    max_new_tokens: int = 512,
+    generation_preview_chars: int = 300,
+):
+    """
+    Print examples where baseline and SFT differ on pass@1.
+    """
+    found = 0
+    total = len(ds_eval)
 
+    print("\n=== Examples Where Baseline and SFT Differ (pass@1) ===")
+
+    for i in range(total):
+        prompt = ds_eval[i]["prompt"]
+        problem_text = str(ds_raw[i].get(problem_field, ""))
+        gt = normalize_to_int_str(ds_raw[i].get(answer_field, None))
+
+        base_pred, base_valid, base_text = solve_pass1(
+            model=baseline_model,
+            tokenizer=baseline_tokenizer,
+            prompt=prompt,
+            max_new_tokens=max_new_tokens,
+        )
+        sft_pred, sft_valid, sft_text = solve_pass1(
+            model=sft_model,
+            tokenizer=sft_tokenizer,
+            prompt=prompt,
+            max_new_tokens=max_new_tokens,
+        )
+
+        base_correct = (base_pred is not None and gt is not None and base_pred == gt)
+        sft_correct = (sft_pred is not None and gt is not None and sft_pred == gt)
+
+        # Only print if they differ in prediction or correctness
+        if (base_pred != sft_pred) or (base_correct != sft_correct):
+            found += 1
+
+            print(f"\n--- Differing Example {found} (dataset idx={i}) ---")
+            print("Gold:", gt)
+            print("Baseline pred:", base_pred, "| valid:", base_valid, "| correct:", base_correct)
+            print("SFT pred:", sft_pred, "| valid:", sft_valid, "| correct:", sft_correct)
+
+            problem_preview = problem_text.replace("\n", " ")
+            print("Problem preview:", problem_preview[:220])
+
+            print("\nBaseline text:")
+            print(base_text[:generation_preview_chars])
+
+            print("\nSFT text:")
+            print(sft_text[:generation_preview_chars])
+
+            base_final = extract_final_answer(base_text)
+            base_fallback = extract_last_int_fallback(base_text)
+            sft_final = extract_final_answer(sft_text)
+            sft_fallback = extract_last_int_fallback(sft_text)
+
+            print("\nExtraction debug:")
+            print(
+                "Baseline -> FINAL_ANSWER:",
+                base_final,
+                "| last_int_fallback:",
+                base_fallback,
+                "| extracted:",
+                base_pred,
+            )
+            print(
+                "SFT -> FINAL_ANSWER:",
+                sft_final,
+                "| last_int_fallback:",
+                sft_fallback,
+                "| extracted:",
+                sft_pred,
+            )
+
+            if found >= n_examples:
+                break
+
+    if found == 0:
+        print("No differing examples found.")
 # ---------------------------
 # Main runner
 # ---------------------------
