@@ -7,13 +7,13 @@
 # - Which RL dataset to train on (rl_train)
 run:
   seed: 42
-  experiment_name: "exp1"
+  experiment_name: "exp2"
   model_key: "qwen"
 
 paths:
   data_config_path: null
-  starting_checkpoint: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/models/sft_qwen_exp1"
-  rl_train_path: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/rl_train/mined_qwen_exp1"
+  starting_checkpoint: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/models/sft_qwen_exp2"
+  rl_train_path: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/rl_train/mined_qwen_exp2"
   output_root: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/models"
 
 prompting:
