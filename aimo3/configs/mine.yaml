@@ -9,7 +9,7 @@ run:
 
 paths:
   data_config_path: null
-  model_checkpoint: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/models/sft_qwen_exp2_v1"
+  model_checkpoint: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/models/sft_qwen_exp2"
   dataset_path: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/processed_splits/omr_aimo3/splits/100000"
   dataset_split: "val"
   max_items: 1000
