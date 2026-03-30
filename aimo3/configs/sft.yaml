@@ -9,7 +9,7 @@
 run:
   seed: 42
   experiment_name: "exp2"         # exp1 = N=100
-  model_key: "deepseekmath"
+  model_key: "qwen"
 
 paths:
   data_config_path: null

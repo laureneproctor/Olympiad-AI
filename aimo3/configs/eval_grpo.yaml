@@ -22,5 +22,5 @@ evaluation:
 
 reporting:
   save_report: true
-  report_filename: "evaluation_report_grpo_qwen_exp1.json"
+  report_filename: "evaluation_report_grpo_qwen_exp2.json"
   verbose: true
