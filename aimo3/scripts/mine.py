@@ -60,8 +60,9 @@ def load_configs(mine_config_path=None):
     dataset_path = paths.get("dataset_path")
     dataset_split = paths.get("dataset_split", "test")
     output_path = paths.get("output_path")
+    max_items = paths.get("max_items")
 
-    return mine_config, data_config, model_checkpoint, dataset_path, dataset_split, output_path, generation, criteria, reporting
+    return mine_config, data_config, model_checkpoint, dataset_path, dataset_split, output_path, max_items, generation, criteria, reporting
 
 # --------------------------------------------------------------------------
 # Answer extraction
@@ -425,6 +426,7 @@ def mine_failures(mine_config_path=None):
         dataset_path,
         dataset_split,
         output_path,
+        max_items,
         generation_cfg,
         criteria_cfg,
         reporting_cfg,
@@ -454,6 +456,10 @@ def mine_failures(mine_config_path=None):
     top_p = float(generation_cfg.get("top_p", 0.95))
     # Load the ds split and model + tokenizer
     ds = load_mining_split(dataset_path, dataset_split)
+    if max_items is not None:
+        capped_total = min(int(max_items), len(ds))
+        ds = ds.select(range(capped_total))
+        print(f"Applied max_items cap: {capped_total}")
     tokenizer, model = load_model_and_tokenizer(model_checkpoint)
     # List to store the mined rows that meet the mining criteria
     mined_rows = []
@@ -558,6 +564,7 @@ def mine_failures(mine_config_path=None):
             "config_path": str(mine_config_path if mine_config_path else helpers.get_config_path()),
             "dataset_path": dataset_path,
             "dataset_split": dataset_split,
+            "max_items": int(max_items) if max_items is not None else None,
             "model_checkpoint": model_checkpoint,
             "output_path": output_path,
             "generation": {
