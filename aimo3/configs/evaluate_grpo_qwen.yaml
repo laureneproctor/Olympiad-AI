@@ -6,7 +6,7 @@ paths:
   sft_config_path: "/content/Olympiad-AI/aimo3/configs/sft.yaml"
   model_checkpoint: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/models/grpo_qwen_exp2"
   dataset_path: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/processed_splits/omr_aimo3/splits/100000"
-  output_dir: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/runs/evaluation_grpo_qwen_exp2"
+  output_dir: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/runs/evaluation_grpo_qwen_exp2_run3"
 
 evaluation:
   split: "test"
@@ -22,5 +22,5 @@ evaluation:
 
 reporting:
   save_report: true
-  report_filename: "evaluation_report_grpo_qwen_exp2.json"
+  report_filename: "evaluation_report_grpo_qwen_exp2_run3.json"
   verbose: true
