@@ -358,12 +358,12 @@ def run_all_experiments(exp_names=None):
     Output:
     - dict mapping experiment name -> DatasetDict(train/val/test)
     """
+    # Load configurations/ yaml
     full_config_path = helpers.get_config_path("data.yaml")
     full_config = helpers.load_yaml(full_config_path)
     dataset_path = full_config["dataset"]["path"]
     filtering_config = full_config["dataset"]["filtering"]
     experiments = full_config["experiments"]
-
     if exp_names is None:
         selected_experiments = list(experiments.keys())
     else:
@@ -371,17 +371,22 @@ def run_all_experiments(exp_names=None):
         missing = [name for name in selected_experiments if name not in experiments]
         if missing:
             raise ValueError(f"Unknown experiment names: {missing}")
-
+        
+    # Loads the dataset & Applies filtering
     cot_data = load_data(dataset_path)
     filtered = apply_filter(cot_data, filtering_config)
 
     sft_config = helpers.load_yaml(helpers.get_config_path("sft.yaml"))
     prepared_root = sft_config["paths"]["prepared_splits_root"]
 
-    # Reuse one deterministic shuffle per seed so repeated experiments are fast.
     shuffled_by_seed = {}
     outputs = {}
 
+    # Process for each experiment:
+    # - Shuffle with seed
+    # - Define N, which is size of split
+    # - Split into Train/Val/Test
+    # - Save splits so later steps are fast and repeatable
     for exp_name in selected_experiments:
         print(f"Rebuilding {exp_name} ...")
         exp_config = experiments[exp_name]
