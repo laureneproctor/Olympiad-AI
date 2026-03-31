@@ -253,11 +253,9 @@ def load_eval_split(dataset_path: str, split_name: str) -> Dataset:
     print("Columns:", split_ds.column_names)
     return split_ds
 
-
 # ---------------------------
 # Model loading
 # ---------------------------
-
 def get_inference_dtype():
     """
     Chooses torch dtype for inference based on available hardware.
@@ -751,6 +749,7 @@ def run_evaluation(evaluate_config_path=None):
     Output:
     - results: nested dict of metadata and computed evaluation metrics
     """
+    # Loads configurations from according yaml files, obtaining problems, model checkpoint, and reporting settings.
     (
         evaluate_config,
         data_config,
@@ -761,11 +760,9 @@ def run_evaluation(evaluate_config_path=None):
         model_checkpoint,
         output_dir,
     ) = load_configs(evaluate_config_path=evaluate_config_path)
-
     eval_yaml = evaluate_config.get("evaluation", {})
     reporting_yaml = evaluate_config.get("reporting", {})
     data_yaml = sft_config.get("data", {})
-
     split_name = eval_yaml.get("split", "test")
     system_prompt = (
         evaluate_config.get("prompting", {}).get("system_prompt")
@@ -773,7 +770,6 @@ def run_evaluation(evaluate_config_path=None):
     )
     problem_field = data_yaml.get("problem_field", "problem")
     answer_field = data_yaml.get("answer_field", "expected_answer")
-
     print("Experiment:", sft_config["run"]["experiment_name"])
     print("Model key:", sft_config["run"]["model_key"])
     print("Model name:", model_config["name"])
@@ -781,6 +777,7 @@ def run_evaluation(evaluate_config_path=None):
     print("Checkpoint:", model_checkpoint)
     print("Eval split:", split_name)
 
+    # Loads the evaluation split and formats it into prompts with expected answers.
     ds_raw = load_eval_split(dataset_path, split_name)
     ds_eval = format_eval_split(
         ds_split=ds_raw,
@@ -788,9 +785,10 @@ def run_evaluation(evaluate_config_path=None):
         problem_field=problem_field,
         answer_field=answer_field,
     )
-
+    # Loads the model and tokenizer for evaluation.
     tokenizer, model = load_eval_model(model_checkpoint)
-
+    
+    # Runs the specified evaluation metrics (pass@1 and/or maj@N) on the evaluation split, collecting results in a dictionary
     results = {
         "metadata": {
             "experiment_name": sft_config["run"]["experiment_name"],
@@ -826,6 +824,7 @@ def run_evaluation(evaluate_config_path=None):
             top_p=eval_yaml.get("majn_top_p", 0.95),
         )
 
+    # Prints a few examples with their prompts, gold answers, generated answers, and majority vote details for qualitative inspection.
     preview_examples = int(reporting_yaml.get("preview_examples", 0))
     if preview_examples > 0:
         print_preview_examples(
@@ -843,7 +842,7 @@ def run_evaluation(evaluate_config_path=None):
             majn_top_p=float(eval_yaml.get("majn_top_p", 0.95)),
             generation_preview_chars=int(reporting_yaml.get("preview_generation_chars", 180)),
         )
-
+    # Saves the evaluation results and metadata to a JSON file in the specified output directory in the yaml configuration
     if reporting_yaml.get("verbose", True):
         print(json.dumps(results, indent=2))
 
