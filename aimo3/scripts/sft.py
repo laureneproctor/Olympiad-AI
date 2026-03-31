@@ -351,6 +351,7 @@ def train_model(sft_config_path=None):
         output_directory,
     ) = load_configs(sft_config_path=sft_config_path)
 
+    # Sets configurations and seeds, checks for checkpoints if resuming training, and prints summary of everything.
     seed = sft_config["run"]["seed"]
     system_prompt = sft_config["prompting"]["system_prompt"]
     model_name = model_config["name"]
@@ -358,7 +359,6 @@ def train_model(sft_config_path=None):
     starting_checkpoint = paths_yaml.get("starting_checkpoint")
     resume_from_checkpoint = paths_yaml.get("resume_from_checkpoint")
     model_init_path = starting_checkpoint if starting_checkpoint else model_name
-
     print("Experiment:", sft_config["run"]["experiment_name"])
     print("Model key:", sft_config["run"]["model_key"])
     print("Model name:", model_name)
@@ -368,14 +368,16 @@ def train_model(sft_config_path=None):
     if resume_from_checkpoint:
         print("Resuming trainer state from:", resume_from_checkpoint)
     helpers.set_seeds(seed)
+
+    # Loads the prepared dataset splits, formats them for SFT
     ds_train_raw, ds_val_raw, ds_test_raw = load_prepared_splits(prepared_data_path)
     ds_train, ds_val = format_sft_splits(ds_train_raw, ds_val_raw, system_prompt)
 
+    # Load Model and Tokenizer
     tok = load_tokenizer(model_init_path)
     model = load_model(model_init_path, sft_config["quantization"])
     peft_config = build_peft_config(sft_config["lora"])
     sft_trainer_config = build_sft_config(sft_config["training"], output_directory)
-
     save_run_metadata(
         output_directory,
         sft_config,
@@ -384,6 +386,7 @@ def train_model(sft_config_path=None):
         model_config,
         prepared_data_path,
     )
+    # Initializes the SFT Trainer, optionally resuming from a checkpoint, and runs training
     trainer = SFTTrainer(
     model=model,
     args=sft_trainer_config,
