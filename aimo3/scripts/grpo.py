@@ -543,14 +543,17 @@ def train_grpo(grpo_config_path=None):
     this function orchestrates the entire GRPO training process. It loads the necessary configurations, sets seeds for reproducibility, 
     loads and formats the RL training dataset, loads the tokenizer and model with the appropriate settings (including quantization and LoRA),
       saves the run metadata, builds the GRPO trainer, and starts the training process.
+    
     Input:
     - grpo_config_path: Optional path to the GRPO config YAML file. If None, defaults to "grpo.yaml" in the config directory. This config file should contain all the
 necessary settings for the GRPO training, including paths to data and checkpoints, model and training hyperparameters, and other relevant configurations.
+    
     Output:
     - The function does not return a value, but it performs the GRPO training and saves the trained model, tokenizer, and metadata to the specified output directory as 
     defined in the GRPO config. The output directory will contain the final trained model checkpoint, the tokenizer files, and YAML files with the GRPO config used, 
     the data config used, and a summary of the run parameters.
     """ 
+
     (
         grpo_config,
         data_config,
@@ -561,9 +564,13 @@ necessary settings for the GRPO training, including paths to data and checkpoint
         output_directory,
     ) = load_configs(grpo_config_path=grpo_config_path)
 
+    # get seed
     seed = grpo_config["run"]["seed"]
+
+    # get system prompt
     system_prompt = grpo_config["prompting"]["system_prompt"]
 
+    # print summary of experiment parameters
     print("Experiment:", grpo_config["run"]["experiment_name"])
     print("Model key:", grpo_config["run"]["model_key"])
     print("Base model:", model_config["name"])
@@ -571,11 +578,14 @@ necessary settings for the GRPO training, including paths to data and checkpoint
     print("RL train path:", rl_train_path)
     print("Output directory:", output_directory)
 
+    # set seed
     helpers.set_seeds(seed)
 
+    # load and format dataset
     ds_train = load_rl_dataset(rl_train_path)
     ds_train = format_rl_dataset(ds_train, system_prompt)
 
+    # load tokenizer, the model and configurations for quantization and LoRA
     tokenizer = load_tokenizer(starting_checkpoint)
     model = load_model_for_grpo(starting_checkpoint, grpo_config["quantization"])
     peft_config = build_peft_config(grpo_config["lora"])
@@ -584,6 +594,7 @@ necessary settings for the GRPO training, including paths to data and checkpoint
         output_directory,
     )
 
+    # save run data 
     save_run_metadata(
         output_directory,
         grpo_config,
@@ -594,6 +605,7 @@ necessary settings for the GRPO training, including paths to data and checkpoint
         rl_train_path,
     )
 
+    # building trainer
     trainer = build_trainer(
         model=model,
         tokenizer=tokenizer,
@@ -602,9 +614,11 @@ necessary settings for the GRPO training, including paths to data and checkpoint
         trainer_config=trainer_config,
     )
 
+    # begin training
     print("Starting GRPO training")
     trainer.train()
 
+    # save model and tokenizer
     print("Saving GRPO model + tokenizer")
     trainer.save_model(trainer_config.output_dir)
     tokenizer.save_pretrained(trainer_config.output_dir)

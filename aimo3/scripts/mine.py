@@ -431,6 +431,7 @@ def mine_failures(mine_config_path=None):
         criteria_cfg,
         reporting_cfg,
     ) = load_configs(mine_config_path)
+
     """
     This function orchestrates the mining process by loading the necessary configurations, 
     setting seeds for reproducibility, loading the dataset and model, and then iterating
@@ -439,21 +440,25 @@ def mine_failures(mine_config_path=None):
     process and saves the mined dataset and a mining report at the end. The function is designed to be 
     flexible and configurable through external YAML files, allowing for easy adjustments to the mining 
     logic and generation parameters without modifying the code.
+    
     Input: 
     - mine_config_path (str, optional): The file path to the mining configuration YAML file. If None, it will look for "mine.yaml" in the default config directory.
+    
     Output:
     - This function does not return a value but performs the mining process and saves the mined dataset to disk, along with a mining report if configured to do so.
     The mined dataset will contain examples
+
     """
-    # Set seed for reproducibility, based on on configs
+    # Set seed for reproducibility
     seed = int(mine_config.get("run", {}).get("seed", 42))
-    # Set Seed
     helpers.set_seeds(seed)
-    # Obtain configurations
+
+    # Obtain configurations from yaml config files
     k = int(generation_cfg.get("k_solutions", 8))
     max_new_tokens = int(generation_cfg.get("max_new_tokens", 512))
     temperature = float(generation_cfg.get("temperature", 0.7))
     top_p = float(generation_cfg.get("top_p", 0.95))
+
     # Load the ds split and model + tokenizer
     ds = load_mining_split(dataset_path, dataset_split)
     if max_items is not None:
@@ -461,8 +466,10 @@ def mine_failures(mine_config_path=None):
         ds = ds.select(range(capped_total))
         print(f"Applied max_items cap: {capped_total}")
     tokenizer, model = load_model_and_tokenizer(model_checkpoint)
+
     # List to store the mined rows that meet the mining criteria
     mined_rows = []
+
     # Dictionary for stats of mining process
     stats = {
         "total_examples": len(ds),
@@ -470,19 +477,25 @@ def mine_failures(mine_config_path=None):
         "skipped_invalid_gold": 0,
         "reasons_count": Counter(),
     }
-    # Iterate through rows in ds split with progress bar
+
+    # Iterate through rows in ds split
     for i, row in enumerate(tqdm(ds, desc="Mining examples", unit="example")):
-        # extract problem and expected answer(gold)
+        
+        # extract problem and expected answer (gold)
         problem = row.get("problem", "")
         gold_raw = row.get("expected_answer", None)
+        
         # Normalize gold answer to ensure it's a valid integer string or None
         gold = normalize_to_int_str(gold_raw)
+        
         # If the gold answer is invalid, skip this example and update stats
         if gold is None:
             stats["skipped_invalid_gold"] += 1
             continue
-        # Build the prompt for the model using the problem text
+        
+        # Build the prompt for the model w/ problem 
         prompt = build_prompt(problem)
+        
         # Generate n solutions from the model for the given prompt using the specified generation parameters
         generations = generate_n_solutions(
             model=model,
@@ -493,13 +506,17 @@ def mine_failures(mine_config_path=None):
             temperature=temperature,
             top_p=top_p,
         )
+        
         # Perform maj vot, counts, extract valid answers, agreement, etc.
         majority, counts, extracted, agreement = majority_vote_answer(generations)
+        
         # If the extracted list is not empty, set has_any_valid to True; otherwise, set it to False.
         has_any_valid = len(extracted) > 0
+        
         # Calculate the format validity rate as the number of valid extractions divided by
         # k (the total number of generations), ensuring that we handle the case where k is zero to avoid division by zero errors
         format_validity_rate = len(extracted) / float(k) if k > 0 else 0.0
+        
         # Determine the reasoning for mining/
         reasons = get_mining_reasons(
             majority_answer=majority,
@@ -509,11 +526,13 @@ def mine_failures(mine_config_path=None):
             has_any_valid=has_any_valid,
             criteria=criteria_cfg,
         )
+        
         # If there are reasons for mining this example, append the relevant 
         # information to the mined_rows list and update the reasons count in stats
         if reasons:
             for r in reasons:
                 stats["reasons_count"][r] += 1
+            
             # Append a dictionary containing all below information about the example to the mined_rows list:
             mined_rows.append(
                 {
@@ -528,10 +547,13 @@ def mine_failures(mine_config_path=None):
                     "mine_reasons": reasons,
                 }
             )
+    
     # Print final stats about mining process.
     stats["mined_examples"] = len(mined_rows)
+    
     # Ensure output exists.
     os.makedirs(output_path, exist_ok=True)
+    
     # If there are mined rows, create a Hugging Face Dataset from the list of mined rows; 
     # otherwise, create an empty Dataset with the appropriate columns. 
     if mined_rows:
@@ -550,10 +572,12 @@ def mine_failures(mine_config_path=None):
                 "mine_reasons": [],
             }
         )
+    
     # Save mined dataset to disk at path
     mined_ds.save_to_disk(output_path)
     print(f"Saved mined dataset to: {output_path}")
     print(f"Mined examples: {len(mined_rows)} / {len(ds)}")
+    
     # If configured to save a mining report, create a report dictionary containing all relevant 
     # information about the mining process, including configuration paths, dataset information,
     #  generation parameters, failure criteria, and statistics. Then save this report as a JSON file to the specified report path.
@@ -582,7 +606,8 @@ def mine_failures(mine_config_path=None):
                 "reasons_count": dict(stats["reasons_count"]),
             },
         }
-        # Save mining report as JSON to path specified in reporting config, creating directories if necessary
+        
+        # Save mining report as JSON to path specified in reporting config
         with open(report_path, "w") as f:
             json.dump(report, f, indent=2)
         
