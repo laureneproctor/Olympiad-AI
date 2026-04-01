@@ -250,8 +250,11 @@ def split_train_val_test(row_selection, split_config, seed):
         - ds_val_raw: A Hugging Face Dataset object containing the validation set rows.
         - ds_test_raw: A Hugging Face Dataset object containing the test set rows.
     """
-    print("Splitting into Train/Val/Test")
-    total_split = split_config["train"] + split_config["val"] + split_config["test"]
+    print("Splitting into Train/Val1/Val2/Test")
+    total_split = split_config["train"] + split_config["val"] + split_config.get("val2", 0.0) + split_config["test"]
+    if abs(total_split - 1.0) > 1e-6:
+        raise ValueError(f"Split fractions must sum to 1.0, got {total_split}")
+
     problem_groups = defaultdict(list)
     for row in row_selection:
         problem = row["problem"].strip()
@@ -260,55 +263,72 @@ def split_train_val_test(row_selection, split_config, seed):
     rng = random.Random(seed)
     rng.shuffle(unique_problems)
     total_problems = len(unique_problems)
+
     train_frac = split_config["train"]
-    val_frac = split_config["val"]
+    val1_frac = split_config["val"]
+    val2_frac = split_config.get("val2", 0.0)
+    test_frac = split_config["test"]
+
     train_end = int(train_frac * total_problems)
-    val_end = train_end + int(val_frac * total_problems)
+    val1_end = train_end + int(val1_frac * total_problems)
+    val2_end = val1_end + int(val2_frac * total_problems)
+
     train_problems = unique_problems[:train_end]
-    val_problems = unique_problems[train_end:val_end]
-    test_problems = unique_problems[val_end:]
+    val1_problems = unique_problems[train_end:val1_end]
+    val2_problems = unique_problems[val1_end:val2_end]
+    test_problems = unique_problems[val2_end:]
+
     train_rows = []
-    val_rows = []
+    val1_rows = []
+    val2_rows = []
     test_rows = []
+
     for problem in train_problems:
         train_rows.extend(problem_groups[problem])
 
-    for problem in val_problems:
-        val_rows.extend(problem_groups[problem])
+    for problem in val1_problems:
+        val1_rows.extend(problem_groups[problem])
+
+    for problem in val2_problems:
+        val2_rows.extend(problem_groups[problem])
 
     for problem in test_problems:
         test_rows.extend(problem_groups[problem])
 
     ds_train_raw = Dataset.from_list(train_rows)
-    ds_val_raw = Dataset.from_list(val_rows)
+    ds_val1_raw = Dataset.from_list(val1_rows)
+    ds_val2_raw = Dataset.from_list(val2_rows)
     ds_test_raw = Dataset.from_list(test_rows)
 
     print("Train rows:", len(ds_train_raw))
-    print("Val rows:", len(ds_val_raw))
+    print("Val1 rows:", len(ds_val1_raw))
+    print("Val2 rows:", len(ds_val2_raw))
     print("Test rows:", len(ds_test_raw))
 
-    return ds_train_raw, ds_val_raw, ds_test_raw
+    return ds_train_raw, ds_val1_raw, ds_val2_raw, ds_test_raw
 
 # --------------------------------------------------------------------------------
 # Save splits
 # --------------------------------------------------------------------------------
-def save_splits(ds_train_raw, ds_val_raw, ds_test_raw, save_dir):
+def save_splits(ds_train_raw, ds_val1_raw, ds_val2_raw, ds_test_raw, save_dir):
     """
-    This function saves the training, validation, and test splits to disk in a specified directory.
+    This function saves the training, validation1, validation2, and test splits to disk in a specified directory.
     Input:
     - ds_train_raw: A Hugging Face Dataset object containing the training set rows.
-    - ds_val_raw: A Hugging Face Dataset object containing the validation set rows.
+    - ds_val1_raw: A Hugging Face Dataset object containing the val1 set rows.
+    - ds_val2_raw: A Hugging Face Dataset object containing the val2 set rows.
     - ds_test_raw: A Hugging Face Dataset object containing the test set rows.
     - save_dir: The directory path where the splits should be saved. The function will create
     the directory if it does not already exist.
     Output:
-    - The function does not return any value but saves the train, val, and test splits to disk in 
+    - The function does not return any value but saves the train, val1, val2, and test splits to disk in 
     the specified directory using the Hugging Face Dataset's save_to_disk method.
     """
-    print("Saving Train/Val/Test splits")
+    print("Saving Train/Val1/Val2/Test splits")
     prepared = DatasetDict({
         "train": ds_train_raw,
-        "val": ds_val_raw,
+        "val": ds_val1_raw,
+        "val2": ds_val2_raw,
         "test": ds_test_raw,
     })
     os.makedirs(save_dir, exist_ok=True)
@@ -337,7 +357,7 @@ def format_sft_splits(prepared):
     system_prompt = sft_config["prompting"]["system_prompt"]
 
     fmtd = {}
-    for split in ["train", "val", "test"]:
+    for split in ["train", "val", "val2", "test"]:
         ds = prepared[split]
         ds_text = ds.map(
             lambda ex: convert_to_prompt_format(ex, system_prompt),
@@ -374,7 +394,7 @@ def tokenize_splits(prepared_dir, model_name, max_length=2048):
     ds_formatted = format_sft_splits(prepared)
 
     tokenized = {}
-    for split in ["train", "val", "test"]:
+    for split in ["train", "val", "val2", "test"]:
         ds = ds_formatted[split]
 
         def encode(batch):
@@ -426,19 +446,19 @@ def run_exp(exp_name):
 
     filtered = apply_filter(cot_data, filtering_config)
     row_selection = take_n_rows(filtered, n, seed)
-    ds_train_raw, ds_val_raw, ds_test_raw = split_train_val_test(row_selection, split_config, seed)
+    ds_train_raw, ds_val1_raw, ds_val2_raw, ds_test_raw = split_train_val_test(row_selection, split_config, seed)
 
     sft_config = helpers.load_yaml(helpers.get_config_path("sft.yaml"))
     prepared_root = sft_config["paths"]["prepared_splits_root"]
     save_dir = os.path.join(prepared_root, "splits", str(n))
-    save_splits(ds_train_raw, ds_val_raw, ds_test_raw, save_dir)
+    save_splits(ds_train_raw, ds_val1_raw, ds_val2_raw, ds_test_raw, save_dir)
 
     model_key = sft_config["run"]["model_key"]
     model_name = full_config["models"][model_key]["tokenizer_name"]
     max_length = sft_config["training"].get("max_seq_length", 2048)
     tokenize_splits(save_dir, model_name, max_length=max_length)
 
-    return DatasetDict({"train": ds_train_raw, "val": ds_val_raw, "test": ds_test_raw})
+    return DatasetDict({"train": ds_train_raw, "val": ds_val1_raw, "val2": ds_val2_raw, "test": ds_test_raw})
 
 
 def run_all_experiments(exp_names=None):
@@ -493,15 +513,15 @@ def run_all_experiments(exp_names=None):
         n_eff = min(n, len(shuffled))
         row_selection = shuffled.select(range(n_eff))
 
-        ds_train_raw, ds_val_raw, ds_test_raw = split_train_val_test(row_selection, split_config, seed)
+        ds_train_raw, ds_val1_raw, ds_val2_raw, ds_test_raw = split_train_val_test(row_selection, split_config, seed)
         save_dir = os.path.join(prepared_root, "splits", str(n))
-        save_splits(ds_train_raw, ds_val_raw, ds_test_raw, save_dir)
+        save_splits(ds_train_raw, ds_val1_raw, ds_val2_raw, ds_test_raw, save_dir)
 
         model_key = sft_config["run"]["model_key"]
         model_name = full_config["models"][model_key]["tokenizer_name"]
         max_length = sft_config["training"].get("max_seq_length", 2048)
         tokenize_splits(save_dir, model_name, max_length=max_length)
 
-        outputs[exp_name] = DatasetDict({"train": ds_train_raw, "val": ds_val_raw, "test": ds_test_raw})
+        outputs[exp_name] = DatasetDict({"train": ds_train_raw, "val": ds_val1_raw, "val2": ds_val2_raw, "test": ds_test_raw})
 
     return outputs

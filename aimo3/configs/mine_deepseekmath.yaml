@@ -11,7 +11,7 @@ paths:
   data_config_path: null
   model_checkpoint: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/models/sft_deepseekmath_exp2"
   dataset_path: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/processed_splits/omr_aimo3/splits/100000"
-  dataset_split: "val"
+  dataset_split: "val2"
   max_items: 250
   output_path: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/rl_train/mined_deepseekmath_exp2_v1"
 

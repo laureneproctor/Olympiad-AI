@@ -8,7 +8,7 @@ from . import helpers
 
 from datasets import load_from_disk
 from peft import LoraConfig, prepare_model_for_kbit_training
-from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig, EarlyStoppingCallback
 from trl import SFTConfig, SFTTrainer
 
 # ------------------------------------------------------------------------------
@@ -119,11 +119,14 @@ def load_prepared_splits(prepared_data_path):
 
     ds_train_raw = prepared["train"]
     ds_val_raw = prepared["val"]
+    ds_val2_raw = prepared.get("val2") if hasattr(prepared, "get") else prepared["val2"] if "val2" in prepared else None
     ds_test_raw = prepared["test"]
     print("Train rows:", len(ds_train_raw))
     print("Val rows:", len(ds_val_raw))
+    if ds_val2_raw is not None:
+        print("Val2 rows:", len(ds_val2_raw))
     print("Test rows:", len(ds_test_raw))
-    return ds_train_raw, ds_val_raw, ds_test_raw
+    return ds_train_raw, ds_val_raw, ds_val2_raw, ds_test_raw
 
 
 # ------------------------------------------------------------------------------
@@ -302,6 +305,14 @@ def build_sft_config(training_yaml, output_directory):
     if "optim" in training_yaml:
         config_kwargs["optim"] = training_yaml["optim"]
 
+    # Early stopping and best model settings
+    if "load_best_model_at_end" in training_yaml:
+        config_kwargs["load_best_model_at_end"] = training_yaml["load_best_model_at_end"]
+    if "metric_for_best_model" in training_yaml:
+        config_kwargs["metric_for_best_model"] = training_yaml["metric_for_best_model"]
+    if "greater_is_better" in training_yaml:
+        config_kwargs["greater_is_better"] = training_yaml["greater_is_better"]
+
     return SFTConfig(**config_kwargs)
 
 
@@ -407,12 +418,24 @@ def train_model(sft_config_path=None):
     configure_training_precision(training_yaml)
 
     # Loads the prepared dataset splits, formats them for SFT if needed
-    ds_train_raw, ds_val_raw, ds_test_raw = load_prepared_splits(prepared_data_path)
+    ds_train_raw, ds_val_raw, ds_val2_raw, ds_test_raw = load_prepared_splits(prepared_data_path)
     if "input_ids" in ds_train_raw.column_names:
         print("Using pre-tokenized splits for training")
         ds_train, ds_val = ds_train_raw, ds_val_raw
     else:
         ds_train, ds_val = format_sft_splits(ds_train_raw, ds_val_raw, system_prompt)
+
+    # Add early stopping callbacks when configured
+    callbacks = []
+    patience = training_yaml.get("early_stopping_patience")
+    if patience is not None:
+        threshold = training_yaml.get("early_stopping_threshold", 0.0)
+        callbacks.append(
+            EarlyStoppingCallback(
+                early_stopping_patience=patience,
+                early_stopping_threshold=threshold,
+            )
+        )
 
     # Load Model and Tokenizer
     tok = load_tokenizer(model_init_path)
@@ -429,12 +452,13 @@ def train_model(sft_config_path=None):
     )
     # Initializes the SFT Trainer, optionally resuming from a checkpoint, and runs training
     trainer = SFTTrainer(
-    model=model,
-    args=sft_trainer_config,
-    train_dataset=ds_train,
-    eval_dataset=ds_val,
-    processing_class=tok,
-    peft_config=peft_config,
+        model=model,
+        args=sft_trainer_config,
+        train_dataset=ds_train,
+        eval_dataset=ds_val,
+        processing_class=tok,
+        peft_config=peft_config,
+        callbacks=callbacks,
     )
     print("Starting training")
     if resume_from_checkpoint:
