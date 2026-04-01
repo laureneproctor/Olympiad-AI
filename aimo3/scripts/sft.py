@@ -91,9 +91,16 @@ def convert_to_prompt_format(example, system_prompt):
 # ------------------------------------------------------------------------------
 # Load prepared splits
 # ------------------------------------------------------------------------------
+def get_tokenized_splits_path(prepared_data_path):
+    parent = os.path.dirname(prepared_data_path)
+    root = os.path.dirname(parent)
+    tokenized_root = os.path.join(root, "splits_tokenized")
+    return os.path.join(tokenized_root, os.path.basename(prepared_data_path))
+
+
 def load_prepared_splits(prepared_data_path):
     """
-    Loads prepared train/val/test splits from disk.
+    Loads prepared train/val/test splits from disk (prefer tokenized splits if available).
     Input:
     - prepared_data_path: path to prepared dataset splits
     Output:
@@ -101,7 +108,15 @@ def load_prepared_splits(prepared_data_path):
     """
     print("Loading processed Train/Val/Test splits")
     print("Prepared path:", prepared_data_path)
-    prepared = load_from_disk(prepared_data_path)
+
+    tokenized_path = get_tokenized_splits_path(prepared_data_path)
+    if os.path.exists(tokenized_path):
+        print("Found tokenized splits at:", tokenized_path)
+        prepared = load_from_disk(tokenized_path)
+    else:
+        print("No tokenized splits found, loading raw splits")
+        prepared = load_from_disk(prepared_data_path)
+
     ds_train_raw = prepared["train"]
     ds_val_raw = prepared["val"]
     ds_test_raw = prepared["test"]
@@ -391,9 +406,13 @@ def train_model(sft_config_path=None):
     training_yaml = sft_config.get("training", {})
     configure_training_precision(training_yaml)
 
-    # Loads the prepared dataset splits, formats them for SFT
+    # Loads the prepared dataset splits, formats them for SFT if needed
     ds_train_raw, ds_val_raw, ds_test_raw = load_prepared_splits(prepared_data_path)
-    ds_train, ds_val = format_sft_splits(ds_train_raw, ds_val_raw, system_prompt)
+    if "input_ids" in ds_train_raw.column_names:
+        print("Using pre-tokenized splits for training")
+        ds_train, ds_val = ds_train_raw, ds_val_raw
+    else:
+        ds_train, ds_val = format_sft_splits(ds_train_raw, ds_val_raw, system_prompt)
 
     # Load Model and Tokenizer
     tok = load_tokenizer(model_init_path)

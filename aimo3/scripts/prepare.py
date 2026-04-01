@@ -16,6 +16,7 @@ import os
 import random
 import re
 import yaml
+from transformers import AutoTokenizer
 from . import helpers
 
 
@@ -314,6 +315,91 @@ def save_splits(ds_train_raw, ds_val_raw, ds_test_raw, save_dir):
     prepared.save_to_disk(save_dir)
     print(f"Saved prepared splits to: {save_dir}")
 
+
+def convert_to_prompt_format(example, system_prompt):
+    problem = str(example["problem"]).strip()
+    reasoning = str(example["generated_solution"]).strip()
+    answer = str(example["expected_answer"]).strip()
+    text = (
+        system_prompt
+        + "\n\nProblem:\n"
+        + problem
+        + "\n\nSolution:\n"
+        + reasoning
+        + "\nFINAL_ANSWER: "
+        + answer
+    )
+    return {"text": text, "expected_answer": answer}
+
+
+def format_sft_splits(prepared):
+    sft_config = helpers.load_yaml(helpers.get_config_path("sft.yaml"))
+    system_prompt = sft_config["prompting"]["system_prompt"]
+
+    fmtd = {}
+    for split in ["train", "val", "test"]:
+        ds = prepared[split]
+        ds_text = ds.map(
+            lambda ex: convert_to_prompt_format(ex, system_prompt),
+            remove_columns=ds.column_names,
+            batched=False,
+            desc=f"Formatting {split} split"
+        )
+        fmtd[split] = ds_text
+
+    return DatasetDict(fmtd)
+
+
+def get_tokenized_save_dir(prepared_dir):
+    parent = os.path.dirname(prepared_dir)  # .../splits
+    root = os.path.dirname(parent)
+    tokenized_root = os.path.join(root, "splits_tokenized")
+    return os.path.join(tokenized_root, os.path.basename(prepared_dir))
+
+
+def tokenize_splits(prepared_dir, model_name, max_length=2048):
+    prepared = load_from_disk(prepared_dir)
+    tokenized_dir = get_tokenized_save_dir(prepared_dir)
+    os.makedirs(tokenized_dir, exist_ok=True)
+
+    tokenizer = AutoTokenizer.from_pretrained(
+        model_name,
+        use_fast=True,
+        trust_remote_code=True,
+    )
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+    tokenizer.padding_side = "right"
+
+    ds_formatted = format_sft_splits(prepared)
+
+    tokenized = {}
+    for split in ["train", "val", "test"]:
+        ds = ds_formatted[split]
+
+        def encode(batch):
+            enc = tokenizer(
+                batch["text"],
+                truncation=True,
+                padding="max_length",
+                max_length=max_length,
+            )
+            enc["labels"] = enc["input_ids"]
+            return enc
+
+        ds_tok = ds.map(
+            encode,
+            batched=True,
+            desc=f"Tokenizing {split} split",
+            remove_columns=["text"],
+        )
+        tokenized[split] = ds_tok
+
+    tokenized = DatasetDict(tokenized)
+    tokenized.save_to_disk(tokenized_dir)
+    print(f"Saved tokenized splits to: {tokenized_dir}")
+    return tokenized_dir
+
 # --------------------------------------------------------------------------------
 # Run one experiment from YAML
 # --------------------------------------------------------------------------------
@@ -346,6 +432,12 @@ def run_exp(exp_name):
     prepared_root = sft_config["paths"]["prepared_splits_root"]
     save_dir = os.path.join(prepared_root, "splits", str(n))
     save_splits(ds_train_raw, ds_val_raw, ds_test_raw, save_dir)
+
+    model_key = sft_config["run"]["model_key"]
+    model_name = full_config["models"][model_key]["tokenizer_name"]
+    max_length = sft_config["training"].get("max_seq_length", 2048)
+    tokenize_splits(save_dir, model_name, max_length=max_length)
+
     return DatasetDict({"train": ds_train_raw, "val": ds_val_raw, "test": ds_test_raw})
 
 
@@ -404,6 +496,11 @@ def run_all_experiments(exp_names=None):
         ds_train_raw, ds_val_raw, ds_test_raw = split_train_val_test(row_selection, split_config, seed)
         save_dir = os.path.join(prepared_root, "splits", str(n))
         save_splits(ds_train_raw, ds_val_raw, ds_test_raw, save_dir)
+
+        model_key = sft_config["run"]["model_key"]
+        model_name = full_config["models"][model_key]["tokenizer_name"]
+        max_length = sft_config["training"].get("max_seq_length", 2048)
+        tokenize_splits(save_dir, model_name, max_length=max_length)
 
         outputs[exp_name] = DatasetDict({"train": ds_train_raw, "val": ds_val_raw, "test": ds_test_raw})
 
