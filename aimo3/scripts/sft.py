@@ -289,6 +289,24 @@ def build_sft_config(training_yaml, output_directory):
 
     return SFTConfig(**config_kwargs)
 
+
+def configure_training_precision(training_yaml):
+    """
+    Configures backend precision toggles used during SFT.
+    Input:
+    - training_yaml: training hyperparameters and runtime options
+    Output:
+    - none
+    """
+    tf32_enabled = bool(training_yaml.get("tf32", False))
+
+    if torch.cuda.is_available():
+        torch.backends.cuda.matmul.allow_tf32 = tf32_enabled
+        torch.backends.cudnn.allow_tf32 = tf32_enabled
+        print("TF32 matmul/cuDNN enabled:", tf32_enabled)
+    else:
+        print("TF32 requested:", tf32_enabled, "(ignored: CUDA not available)")
+
 # ------------------------------------------------------------------------------
 # Metadata saving
 # ------------------------------------------------------------------------------
@@ -369,6 +387,10 @@ def train_model(sft_config_path=None):
         print("Resuming trainer state from:", resume_from_checkpoint)
     helpers.set_seeds(seed)
 
+    # enabled tf32 for optimization
+    training_yaml = sft_config.get("training", {})
+    configure_training_precision(training_yaml)
+
     # Loads the prepared dataset splits, formats them for SFT
     ds_train_raw, ds_val_raw, ds_test_raw = load_prepared_splits(prepared_data_path)
     ds_train, ds_val = format_sft_splits(ds_train_raw, ds_val_raw, system_prompt)
@@ -377,7 +399,7 @@ def train_model(sft_config_path=None):
     tok = load_tokenizer(model_init_path)
     model = load_model(model_init_path, sft_config["quantization"])
     peft_config = build_peft_config(sft_config["lora"])
-    sft_trainer_config = build_sft_config(sft_config["training"], output_directory)
+    sft_trainer_config = build_sft_config(training_yaml, output_directory)
     save_run_metadata(
         output_directory,
         sft_config,

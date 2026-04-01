@@ -73,6 +73,7 @@ training:
   save_steps: 1000
   save_total_limit: 1
   bf16: true
+  tf32: true
   gradient_checkpointing: true
   report_to: []
   packing: false
