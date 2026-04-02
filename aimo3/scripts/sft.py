@@ -223,12 +223,12 @@ def load_model(model_name_or_path, quantization_yaml):
     quantization_config = maybe_get_quantization_config(quantization_yaml)
 
     flash_attn_available = importlib.util.find_spec("flash_attn") is not None
-    attn_impl = "flash_attention_2" if flash_attn_available else "sdpa"
+    attn_impl = "sdpa"  # "flash_attention_2" if flash_attn_available else "sdpa"
 
     model_kwargs = {
         "trust_remote_code": True,
         "attn_implementation": attn_impl,
-        "torch_dtype": torch.bfloat16,
+        "dtype": torch.bfloat16,
     }
 
     if quantization_config is not None:

@@ -377,7 +377,7 @@ def get_tokenized_save_dir(prepared_dir):
     return os.path.join(tokenized_root, os.path.basename(prepared_dir))
 
 
-def tokenize_splits(prepared_dir, model_name, max_length=2048):
+def tokenize_splits(prepared_dir, model_name, max_length=1024):
     prepared = load_from_disk(prepared_dir)
     tokenized_dir = get_tokenized_save_dir(prepared_dir)
     os.makedirs(tokenized_dir, exist_ok=True)
