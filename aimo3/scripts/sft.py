@@ -447,6 +447,17 @@ def train_model(sft_config_path=None):
     # Load Model and Tokenizer
     tok = load_tokenizer(model_init_path)
     model = load_model(model_init_path, sft_config["quantization"])
+
+    # Make tokenizer/model special tokens consistent
+    if tok.pad_token is None:
+        tok.pad_token = tok.eos_token
+
+    model.config.pad_token_id = tok.pad_token_id
+    model.generation_config.pad_token_id = tok.pad_token_id
+
+    # Important: ensure embedding matrix matches tokenizer size
+    model.resize_token_embeddings(len(tok))
+
     peft_config = build_peft_config(sft_config["lora"])
     sft_trainer_config = build_sft_config(training_yaml, output_directory)
     save_run_metadata(
