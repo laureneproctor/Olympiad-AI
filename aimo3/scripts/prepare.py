@@ -404,7 +404,7 @@ def tokenize_splits(prepared_dir, model_name, max_length=2048):
                 padding="max_length",
                 max_length=max_length,
             )
-            enc["labels"] = enc["input_ids"]
+            enc["labels"] = [label if mask == 1 else -100 for label, mask in zip(enc["input_ids"], enc["attention_mask"])]
             return enc
 
         ds_tok = ds.map(
