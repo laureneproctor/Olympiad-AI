@@ -281,7 +281,7 @@ def build_sft_config(training_yaml, output_directory):
 
     config_kwargs = {
         "output_dir": output_directory,
-        "max_length": max_length,
+        "max_seq_length": max_length,
         "per_device_train_batch_size": training_yaml["per_device_train_batch_size"],
         "per_device_eval_batch_size": training_yaml["per_device_eval_batch_size"],
         "gradient_accumulation_steps": training_yaml["gradient_accumulation_steps"],
