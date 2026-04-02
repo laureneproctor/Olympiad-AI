@@ -271,13 +271,11 @@ def build_peft_config(lora_yaml):
 # ------------------------------------------------------------------------------
 def build_sft_config(training_yaml, output_directory):
     """
-    Builds TRL SFTConfig from training settings.
-    Input:
-    - training_yaml: training hyperparameters and runtime options
-    - output_directory: directory for checkpoints and outputs
-    Output:
-    - sft_config: SFTConfig object for SFTTrainer
+    Builds TRL SFTConfig from training settings while dropping args
+    unsupported by the installed TRL version.
     """
+    import inspect
+
     max_length = training_yaml.get("max_length", training_yaml.get("max_seq_length"))
     eval_strategy = training_yaml.get("eval_strategy", training_yaml.get("evaluation_strategy"))
 
@@ -298,22 +296,28 @@ def build_sft_config(training_yaml, output_directory):
         "bf16": training_yaml.get("bf16", False),
         "report_to": training_yaml.get("report_to", []),
     }
-    if "gradient_checkpointing" in training_yaml:
-        config_kwargs["gradient_checkpointing"] = training_yaml["gradient_checkpointing"]
-    if "packing" in training_yaml:
-        config_kwargs["packing"] = training_yaml["packing"]
-    if "optim" in training_yaml:
-        config_kwargs["optim"] = training_yaml["optim"]
 
-    # Early stopping and best model settings
-    if "load_best_model_at_end" in training_yaml:
-        config_kwargs["load_best_model_at_end"] = training_yaml["load_best_model_at_end"]
-    if "metric_for_best_model" in training_yaml:
-        config_kwargs["metric_for_best_model"] = training_yaml["metric_for_best_model"]
-    if "greater_is_better" in training_yaml:
-        config_kwargs["greater_is_better"] = training_yaml["greater_is_better"]
+    optional_keys = [
+        "gradient_checkpointing",
+        "packing",
+        "optim",
+        "max_steps",
+        "weight_decay",
+        "lr_scheduler_type",
+        "seed",
+    ]
+    for key in optional_keys:
+        if key in training_yaml:
+            config_kwargs[key] = training_yaml[key]
 
-    return SFTConfig(**config_kwargs)
+    valid_params = set(inspect.signature(SFTConfig.__init__).parameters.keys())
+    filtered_kwargs = {k: v for k, v in config_kwargs.items() if k in valid_params}
+
+    dropped = set(config_kwargs.keys()) - set(filtered_kwargs.keys())
+    if dropped:
+        print(f"Note: dropped unsupported SFTConfig params for this TRL version: {dropped}")
+
+    return SFTConfig(**filtered_kwargs)
 
 
 def configure_training_precision(training_yaml):
