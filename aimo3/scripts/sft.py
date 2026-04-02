@@ -305,6 +305,9 @@ def build_sft_config(training_yaml, output_directory):
         "weight_decay",
         "lr_scheduler_type",
         "seed",
+        "metric_for_best_model",
+        "greater_is_better",
+        "load_best_model_at_end",
     ]
     for key in optional_keys:
         if key in training_yaml:
