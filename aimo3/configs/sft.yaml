@@ -34,6 +34,9 @@ data:
   reasoning_field: "generated_solution"
   answer_field: "expected_answer"
   text_field: "text"
+  quality_rating_column: "reasoning_quality_rating"
+  quality_rating_min: 1
+  quality_rating_max: 10
 
 quantization:
   enabled: true

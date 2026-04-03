@@ -47,6 +47,8 @@ experiments:
   exp1:
     seed: 42
     N: 100
+    quality_rating_min: 1
+    quality_rating_max: 10
     splits:
       train: 0.7
       val: 0.1
@@ -59,6 +61,8 @@ experiments:
   exp2:
     seed: 42
     N: 100000
+    quality_rating_min: 1
+    quality_rating_max: 10
     splits:
       train: 0.7
       val: 0.1

@@ -31,6 +31,12 @@ FINAL_ANSWER_CONFIG_KEYS = {
     "debug_dropped_scan_limit",
 }
 
+QUALITY_RATING_COLUMN = "reasoning_quality_rating"
+_LAST_INT_RE = re.compile(r"\b(-?\d+)\b")
+_ASSIGN_RE = re.compile(r"\b([a-zA-Z])\s*=\s*(-?\d+)\b")
+_STEP_CUES = ("therefore", "thus", "hence", "so", "because", "then", "implies")
+_CORRECTION_CUES = ("actually", "wait", "i was wrong", "correction", "contradiction")
+
 
 def parse_single_integer_final_answer(value):
     """
@@ -235,6 +241,96 @@ def take_n_rows(filtered, n, seed):
     print("Selected size:", len(row_selection))
     return row_selection
 
+
+def _extract_last_int(text):
+    matches = _LAST_INT_RE.findall(str(text))
+    if not matches:
+        return None
+    return matches[-1]
+
+
+def _repetition_ratio(text, n=3):
+    tokens = str(text).lower().split()
+    if len(tokens) < n:
+        return 0.0
+    ngrams = [" ".join(tokens[i : i + n]) for i in range(len(tokens) - n + 1)]
+    if not ngrams:
+        return 0.0
+    return 1.0 - (len(set(ngrams)) / len(ngrams))
+
+
+def compute_reasoning_quality_rating(row):
+    """
+    Compute a heuristic reasoning quality rating in [1, 10], where 1 is best and 10 is worst.
+    """
+    solution = str(row.get("generated_solution", ""))
+    answer = str(row.get("expected_answer", "")).strip()
+
+    pred = _extract_last_int(solution)
+    align_ok = 1.0 if pred is not None and pred == answer else 0.0
+
+    assignments = _ASSIGN_RE.findall(solution)
+    seen = {}
+    contradictions = 0
+    for var, val in assignments:
+        if var in seen and seen[var] != val:
+            contradictions += 1
+        seen[var] = val
+    contradictions += sum(1 for cue in _CORRECTION_CUES if cue in solution.lower())
+
+    token_count = max(1, len(solution.split()))
+    cue_count = sum(solution.lower().count(cue) for cue in _STEP_CUES)
+    clarity = 100.0 * cue_count / token_count
+
+    length = len(solution)
+    length_ok = 1.0 if 120 <= length <= 2200 else 0.0
+
+    repetition = _repetition_ratio(solution, n=3)
+
+    score_0_100 = (
+        45.0 * align_ok
+        + 20.0 * max(0.0, 1.0 - contradictions / 3.0)
+        + 15.0 * min(1.0, clarity / 2.0)
+        + 10.0 * length_ok
+        + 10.0 * max(0.0, 1.0 - repetition / 0.35)
+    )
+
+    # Map continuous score to a 1-10 integer bucket, inverted so lower is better.
+    rating = int(max(1, min(10, 11 - round(score_0_100 / 10.0))))
+    return rating
+
+
+def add_reasoning_quality_rating(ds):
+    """
+    Add a 1-10 reasoning quality rating column used for downstream filtering.
+    """
+    print(f"Adding {QUALITY_RATING_COLUMN} column")
+
+    def _add(row):
+        return {QUALITY_RATING_COLUMN: compute_reasoning_quality_rating(row)}
+
+    rated = ds.map(_add, desc=f"Computing {QUALITY_RATING_COLUMN}")
+    print(f"Added {QUALITY_RATING_COLUMN} to dataset")
+    return rated
+
+
+def filter_by_quality_rating(ds, min_rating=1, max_rating=10):
+    """
+    Keep rows whose reasoning quality rating is within [min_rating, max_rating].
+    """
+    min_rating = int(min_rating)
+    max_rating = int(max_rating)
+    if min_rating > max_rating:
+        raise ValueError(f"quality rating range invalid: {min_rating} > {max_rating}")
+
+    print(f"Filtering by {QUALITY_RATING_COLUMN} in [{min_rating}, {max_rating}]")
+    filtered = ds.filter(
+        lambda row: min_rating <= int(row.get(QUALITY_RATING_COLUMN, 0)) <= max_rating,
+        desc="Filtering by reasoning quality",
+    )
+    print("Quality-filtered size:", len(filtered))
+    return filtered
+
 # --------------------------------------------------------------------------------
 # Split Train / Val / Test by unique problem text
 # --------------------------------------------------------------------------------
@@ -349,7 +445,10 @@ def convert_to_prompt_format(example, system_prompt):
         + "\nFINAL_ANSWER: "
         + answer
     )
-    return {"text": text, "expected_answer": answer}
+    output = {"text": text, "expected_answer": answer}
+    if QUALITY_RATING_COLUMN in example:
+        output[QUALITY_RATING_COLUMN] = int(example[QUALITY_RATING_COLUMN])
+    return output
 
 
 def format_sft_splits(prepared):
@@ -404,7 +503,10 @@ def tokenize_splits(prepared_dir, model_name, max_length=1024):
                 padding="max_length",
                 max_length=max_length,
             )
-            enc["labels"] = [label if mask == 1 else -100 for label, mask in zip(enc["input_ids"], enc["attention_mask"])]
+            enc["labels"] = [
+                [token_id if mask_value == 1 else -100 for token_id, mask_value in zip(input_ids, attention_mask)]
+                for input_ids, attention_mask in zip(enc["input_ids"], enc["attention_mask"])
+            ]
             return enc
 
         ds_tok = ds.map(
@@ -445,6 +547,12 @@ def run_exp(exp_name):
     cot_data = load_data(dataset_path)
 
     filtered = apply_filter(cot_data, filtering_config)
+    filtered = add_reasoning_quality_rating(filtered)
+
+    quality_min = exp_config.get("quality_rating_min", 1)
+    quality_max = exp_config.get("quality_rating_max", 10)
+    filtered = filter_by_quality_rating(filtered, quality_min, quality_max)
+
     row_selection = take_n_rows(filtered, n, seed)
     ds_train_raw, ds_val1_raw, ds_val2_raw, ds_test_raw = split_train_val_test(row_selection, split_config, seed)
 
@@ -487,6 +595,7 @@ def run_all_experiments(exp_names=None):
     # Loads the dataset & Applies filtering
     cot_data = load_data(dataset_path)
     filtered = apply_filter(cot_data, filtering_config)
+    filtered = add_reasoning_quality_rating(filtered)
 
     sft_config = helpers.load_yaml(helpers.get_config_path("sft.yaml"))
     prepared_root = sft_config["paths"]["prepared_splits_root"]
@@ -505,13 +614,16 @@ def run_all_experiments(exp_names=None):
         seed = exp_config["seed"]
         n = exp_config["N"]
         split_config = exp_config["splits"]
+        quality_min = exp_config.get("quality_rating_min", 1)
+        quality_max = exp_config.get("quality_rating_max", 10)
 
         if seed not in shuffled_by_seed:
             shuffled_by_seed[seed] = filtered.shuffle(seed=seed)
 
         shuffled = shuffled_by_seed[seed]
-        n_eff = min(n, len(shuffled))
-        row_selection = shuffled.select(range(n_eff))
+        quality_filtered = filter_by_quality_rating(shuffled, quality_min, quality_max)
+        n_eff = min(n, len(quality_filtered))
+        row_selection = quality_filtered.select(range(n_eff))
 
         ds_train_raw, ds_val1_raw, ds_val2_raw, ds_test_raw = split_train_val_test(row_selection, split_config, seed)
         save_dir = os.path.join(prepared_root, "splits", str(n))

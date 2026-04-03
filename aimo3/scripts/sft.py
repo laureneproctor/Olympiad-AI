@@ -162,6 +162,42 @@ def format_sft_splits(ds_train_raw, ds_val_raw, system_prompt):
     return fmtd_train, fmtd_val
 
 
+def maybe_filter_by_quality_rating(ds, data_yaml, split_name):
+    """
+    Optionally filter a split by reasoning quality rating range.
+    Input:
+    - ds: dataset split to filter
+    - data_yaml: sft data config block
+    - split_name: friendly split name for logs
+    Output:
+    - filtered dataset split
+    """
+    min_rating = data_yaml.get("quality_rating_min")
+    max_rating = data_yaml.get("quality_rating_max")
+    column = data_yaml.get("quality_rating_column", "reasoning_quality_rating")
+
+    if min_rating is None and max_rating is None:
+        return ds
+
+    if column not in ds.column_names:
+        print(f"Skipping quality filter for {split_name}: column '{column}' not found")
+        return ds
+
+    min_rating = 1 if min_rating is None else int(min_rating)
+    max_rating = 10 if max_rating is None else int(max_rating)
+    if min_rating > max_rating:
+        raise ValueError(f"Invalid quality rating range: {min_rating} > {max_rating}")
+
+    print(f"Filtering {split_name} by {column} in [{min_rating}, {max_rating}]")
+    before = len(ds)
+    filtered = ds.filter(
+        lambda row: min_rating <= int(row[column]) <= max_rating,
+        desc=f"Filtering {split_name} by quality",
+    )
+    print(f"{split_name} rows: {before} -> {len(filtered)}")
+    return filtered
+
+
 # ------------------------------------------------------------------------------
 # Tokenizer
 # ------------------------------------------------------------------------------
@@ -426,6 +462,10 @@ def train_model(sft_config_path=None):
 
     # Loads the prepared dataset splits, formats them for SFT if needed
     ds_train_raw, ds_val_raw, ds_val2_raw, ds_test_raw = load_prepared_splits(prepared_data_path)
+    data_yaml = sft_config.get("data", {})
+    ds_train_raw = maybe_filter_by_quality_rating(ds_train_raw, data_yaml, "train")
+    ds_val_raw = maybe_filter_by_quality_rating(ds_val_raw, data_yaml, "val")
+
     if "input_ids" in ds_train_raw.column_names:
         print("Using pre-tokenized splits for training")
         ds_train, ds_val = ds_train_raw, ds_val_raw
