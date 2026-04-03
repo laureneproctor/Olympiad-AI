@@ -506,7 +506,7 @@ def run_exp(exp_name):
 
     sft_config = helpers.load_yaml(helpers.get_config_path("sft.yaml"))
     prepared_root = sft_config["paths"]["prepared_splits_root"]
-    save_dir = os.path.join(prepared_root, "splits", str(n))
+    save_dir = os.path.join(prepared_root, "splits", exp_name, str(n))
     save_splits(ds_train_raw, ds_val1_raw, ds_val2_raw, ds_test_raw, save_dir)
 
     return DatasetDict({"train": ds_train_raw, "val": ds_val1_raw, "val2": ds_val2_raw, "test": ds_test_raw})
@@ -630,7 +630,7 @@ def run_all_experiments(exp_names=None):
         row_selection = quality_filtered.select(range(n_eff))
 
         ds_train_raw, ds_val1_raw, ds_val2_raw, ds_test_raw = split_train_val_test(row_selection, split_config, seed)
-        save_dir = os.path.join(prepared_root, "splits", str(n))
+        save_dir = os.path.join(prepared_root, "splits", exp_name, str(n))
         save_splits(ds_train_raw, ds_val1_raw, ds_val2_raw, ds_test_raw, save_dir)
 
         outputs[exp_name] = DatasetDict({"train": ds_train_raw, "val": ds_val1_raw, "val2": ds_val2_raw, "test": ds_test_raw})

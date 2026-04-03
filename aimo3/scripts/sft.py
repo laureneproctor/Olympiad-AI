@@ -39,11 +39,16 @@ def load_configs(sft_config_path=None):
     model_config = data_config["models"][model_key]
     n = exp_config["N"]
 
+    prepared_root = sft_config["paths"]["prepared_splits_root"]
     prepared_data_path = os.path.join(
-        sft_config["paths"]["prepared_splits_root"],
+        prepared_root,
         "splits",
+        exp_name,
         str(n),
     )
+    # Backward-compatible fallback for older split layout: .../splits/<N>
+    if not os.path.exists(prepared_data_path):
+        prepared_data_path = os.path.join(prepared_root, "splits", str(n))
     output_directory = os.path.join(
         sft_config["paths"]["output_root"],
         f"sft_{model_key}_{exp_name}",
