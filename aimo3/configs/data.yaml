@@ -46,7 +46,7 @@ models:
 experiments:
   exp1:
     seed: 42
-    N: 100000
+    N: 50000
     quality_rating_min: 1
     quality_rating_max: 3
     splits:
@@ -57,7 +57,7 @@ experiments:
 
   exp2:
     seed: 42
-    N: 100000
+    N: 50000
     quality_rating_min: 1
     quality_rating_max: 5
     splits:
@@ -68,7 +68,7 @@ experiments:
 
   exp3:
     seed: 42
-    N: 100000
+    N: 50000
     quality_rating_min: 1
     quality_rating_max: 10
     splits:
