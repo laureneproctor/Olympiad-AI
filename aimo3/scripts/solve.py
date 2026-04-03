@@ -167,17 +167,17 @@ def majority_vote_answer(
 # ============================================================================
 def load_configs(solve_config_path=None):
     if solve_config_path is None:
-        solve_config_path = help.get_config_path("solve.yaml")
+        solve_config_path = helpers.get_config_path("solve.yaml")
 
     print(f"Loading solve config from {solve_config_path}...")
-    solve_config = help.load_yaml(solve_config_path)
+    solve_config = helpers.load_yaml(solve_config_path)
 
     data_config_path = solve_config.get("paths", {}).get("data_config_path")
     if not data_config_path:
-        data_config_path = help.get_config_path("data.yaml")
+        data_config_path = helpers.get_config_path("data.yaml")
 
     print(f"Loading data config from {data_config_path}...")
-    data_config = help.load_yaml(data_config_path)
+    data_config = helpers.load_yaml(data_config_path)
 
     return solve_config, data_config
 

@@ -512,6 +512,67 @@ def run_exp(exp_name):
     return DatasetDict({"train": ds_train_raw, "val": ds_val1_raw, "val2": ds_val2_raw, "test": ds_test_raw})
 
 
+def preview_quality_filter_counts(exp_names=None):
+    """
+    Preview how many rows pass each experiment's quality filter without saving.
+    Useful for determining optimal consistent N across experiments.
+    
+    Input:
+    - exp_names: optional list of experiment names. If None, previews all from data.yaml.
+    Output:
+    - dict mapping exp_name -> (rows_after_quality_filter, requested_N)
+    """
+    full_config_path = helpers.get_config_path("data.yaml")
+    full_config = helpers.load_yaml(full_config_path)
+    dataset_path = full_config["dataset"]["path"]
+    filtering_config = full_config["dataset"]["filtering"]
+    experiments = full_config["experiments"]
+    
+    if exp_names is None:
+        selected_experiments = list(experiments.keys())
+    else:
+        selected_experiments = list(exp_names)
+    
+    # Load and filter dataset once
+    print("Loading and applying base filters...")
+    cot_data = load_data(dataset_path)
+    filtered = apply_filter(cot_data, filtering_config)
+    filtered = add_reasoning_quality_rating(filtered)
+    
+    print("\nQuality Filter Preview:")
+    print("=" * 80)
+    
+    results = {}
+    seed_cache = {}
+    
+    for exp_name in selected_experiments:
+        exp_config = experiments[exp_name]
+        seed = exp_config["seed"]
+        quality_min = exp_config.get("quality_rating_min", 1)
+        quality_max = exp_config.get("quality_rating_max", 10)
+        requested_n = exp_config["N"]
+        
+        # Shuffle once per seed
+        if seed not in seed_cache:
+            seed_cache[seed] = filtered.shuffle(seed=seed)
+        shuffled = seed_cache[seed]
+        
+        # Apply quality filter
+        quality_filtered = filter_by_quality_rating(shuffled, quality_min, quality_max)
+        count_after_quality = len(quality_filtered)
+        
+        results[exp_name] = (count_after_quality, requested_n)
+        
+        print(f"{exp_name}: {count_after_quality:,} rows after filtering (quality {quality_min}-{quality_max}) | requested N: {requested_n:,}")
+    
+    print("=" * 80)
+    min_count = min(count for count, _ in results.values())
+    print(f"\nRecommendation: Set all experiments to N={min_count:,} for fair comparison.")
+    print(f"This ensures all experiments use the same dataset size after quality filtering.\n")
+    
+    return results
+
+
 def run_all_experiments(exp_names=None):
     """
     Run data preparation for multiple experiments while loading/filtering the dataset only once.
