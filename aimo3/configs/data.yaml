@@ -46,19 +46,27 @@ models:
 experiments:
   exp1:
     seed: 42
-    N: 100
+    N: 100000
     quality_rating_min: 1
-    quality_rating_max: 10
+    quality_rating_max: 3
     splits:
       train: 0.7
       val: 0.1
       val2: 0.1
       test: 0.1
-    # models:
-    #   - qwen
-    #   - deepseekmath
 
   exp2:
+    seed: 42
+    N: 100000
+    quality_rating_min: 1
+    quality_rating_max: 5
+    splits:
+      train: 0.7
+      val: 0.1
+      val2: 0.1
+      test: 0.1
+
+  exp3:
     seed: 42
     N: 100000
     quality_rating_min: 1
@@ -68,6 +76,3 @@ experiments:
       val: 0.1
       val2: 0.1
       test: 0.1
-    # models:
-    #   - qwen
-    #   - deepseekmath

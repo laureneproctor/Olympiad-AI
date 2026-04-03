@@ -91,31 +91,18 @@ def convert_to_prompt_format(example, system_prompt):
 # ------------------------------------------------------------------------------
 # Load prepared splits
 # ------------------------------------------------------------------------------
-def get_tokenized_splits_path(prepared_data_path):
-    parent = os.path.dirname(prepared_data_path)
-    root = os.path.dirname(parent)
-    tokenized_root = os.path.join(root, "splits_tokenized")
-    return os.path.join(tokenized_root, os.path.basename(prepared_data_path))
-
-
 def load_prepared_splits(prepared_data_path):
     """
-    Loads prepared train/val/test splits from disk (prefer tokenized splits if available).
+    Loads prepared train/val/test splits from disk (raw format).
     Input:
     - prepared_data_path: path to prepared dataset splits
     Output:
-    - tuple: (ds_train_raw, ds_val_raw, ds_test_raw)
+    - tuple: (ds_train_raw, ds_val_raw, ds_val2_raw, ds_test_raw)
     """
     print("Loading processed Train/Val/Test splits")
     print("Prepared path:", prepared_data_path)
 
-    tokenized_path = get_tokenized_splits_path(prepared_data_path)
-    if os.path.exists(tokenized_path):
-        print("Found tokenized splits at:", tokenized_path)
-        prepared = load_from_disk(tokenized_path)
-    else:
-        print("No tokenized splits found, loading raw splits")
-        prepared = load_from_disk(prepared_data_path)
+    prepared = load_from_disk(prepared_data_path)
 
     ds_train_raw = prepared["train"]
     ds_val_raw = prepared["val"]
@@ -331,6 +318,7 @@ def build_sft_config(training_yaml, output_directory):
         "save_total_limit": training_yaml["save_total_limit"],
         "bf16": training_yaml.get("bf16", False),
         "report_to": training_yaml.get("report_to", []),
+        "response_template": "\nSolution:",
     }
 
     optional_keys = [
@@ -344,6 +332,7 @@ def build_sft_config(training_yaml, output_directory):
         "metric_for_best_model",
         "greater_is_better",
         "load_best_model_at_end",
+        "response_template",
     ]
     for key in optional_keys:
         if key in training_yaml:

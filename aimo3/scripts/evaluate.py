@@ -329,9 +329,10 @@ def generate_n_solutions(
     max_new_tokens: int = 512,
     temperature: float = 0.7,
     top_p: float = 0.95,
+    min_confidence: float = 0.1,
 ) -> List[str]:
     """
-    Generates multiple sampled responses for one prompt.
+    Generates multiple sampled responses for one prompt with confidence-based early stopping.
     Input:
     - model: loaded causal language model
     - tokenizer: tokenizer paired with the model
@@ -340,6 +341,7 @@ def generate_n_solutions(
     - max_new_tokens: maximum generated tokens per completion
     - temperature: sampling temperature
     - top_p: nucleus sampling threshold
+    - min_confidence: minimum probability threshold; stop if any token falls below this
     Output:
     - generations: list of decoded generated solution strings
     """
@@ -355,11 +357,35 @@ def generate_n_solutions(
         num_return_sequences=n,
         pad_token_id=tokenizer.eos_token_id,
         eos_token_id=tokenizer.eos_token_id,
+        output_scores=True,
+        return_dict_in_generate=True,
     )
 
     generations = []
-    for output in outputs:
-        tail = output[prompt_len:]
+    for i, output_ids in enumerate(outputs.sequences):
+        tail = output_ids[prompt_len:]
+        
+        # Check confidence: if any token has low probability, truncate generation
+        if hasattr(outputs, 'scores') and outputs.scores and min_confidence > 0:
+            # scores is a tuple of (vocab_size,) tensors for each generated position
+            min_prob = 1.0
+            for score_tensor in outputs.scores:
+                probs = torch.softmax(score_tensor[i], dim=-1)
+                max_prob = probs.max().item()
+                min_prob = min(min_prob, max_prob)
+            
+            # If model became uncertain, truncate to most confident part
+            if min_prob < min_confidence:
+                # Find the position where confidence dropped
+                confident_length = len(tail)
+                for j, score_tensor in enumerate(outputs.scores):
+                    probs = torch.softmax(score_tensor[i], dim=-1)
+                    max_prob = probs.max().item()
+                    if max_prob < min_confidence:
+                        confident_length = j
+                        break
+                tail = tail[:confident_length]
+        
         generations.append(tokenizer.decode(tail, skip_special_tokens=True))
 
     return generations
@@ -824,24 +850,7 @@ def run_evaluation(evaluate_config_path=None):
             top_p=eval_yaml.get("majn_top_p", 0.95),
         )
 
-    # Prints a few examples with their prompts, gold answers, generated answers, and majority vote details for qualitative inspection.
-    preview_examples = int(reporting_yaml.get("preview_examples", 0))
-    if preview_examples > 0:
-        print_preview_examples(
-            model=model,
-            tokenizer=tokenizer,
-            ds_raw=ds_raw,
-            ds_eval=ds_eval,
-            n_examples=preview_examples,
-            problem_field=problem_field,
-            answer_field=answer_field,
-            pass1_max_new_tokens=int(eval_yaml.get("pass1_max_new_tokens", 512)),
-            n_samples=int(eval_yaml.get("majn_n_samples", 8)),
-            majn_max_new_tokens=int(eval_yaml.get("majn_max_new_tokens", 512)),
-            majn_temperature=float(eval_yaml.get("majn_temperature", 0.7)),
-            majn_top_p=float(eval_yaml.get("majn_top_p", 0.95)),
-            generation_preview_chars=int(reporting_yaml.get("preview_generation_chars", 180)),
-        )
+
     # Saves the evaluation results and metadata to a JSON file in the specified output directory in the yaml configuration
     if reporting_yaml.get("verbose", True):
         print(json.dumps(results, indent=2))

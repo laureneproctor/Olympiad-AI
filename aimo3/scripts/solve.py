@@ -99,6 +99,7 @@ def generate_n_solutions(
     max_new_tokens: int = 512,
     temperature: float = 0.7,
     top_p: float = 0.95,
+    min_confidence: float = 0.1,
 ) -> List[str]:
     solutions = []
     device = next(model.parameters()).device
@@ -107,6 +108,7 @@ def generate_n_solutions(
         encoded = tokenizer(prompt, return_tensors="pt")
         input_ids = encoded["input_ids"].to(device)
         attention_mask = encoded["attention_mask"].to(device)
+        prompt_len = input_ids.shape[1]
 
         outputs = model.generate(
             input_ids=input_ids,
@@ -117,9 +119,25 @@ def generate_n_solutions(
             do_sample=True,
             pad_token_id=tokenizer.pad_token_id,
             eos_token_id=tokenizer.eos_token_id,
+            output_scores=True,
+            return_dict_in_generate=True,
         )
 
-        solution = tokenizer.decode(outputs[0], skip_special_tokens=True)
+        output_ids = outputs.sequences[0]
+        tail = output_ids[prompt_len:]
+        
+        # Confidence-based early stopping: truncate if model becomes uncertain
+        if hasattr(outputs, 'scores') and outputs.scores and min_confidence > 0:
+            truncate_at = len(tail)
+            for j, score_tensor in enumerate(outputs.scores):
+                probs = torch.softmax(score_tensor[0], dim=-1)
+                max_prob = probs.max().item()
+                if max_prob < min_confidence:
+                    truncate_at = j
+                    break
+            tail = tail[:truncate_at]
+        
+        solution = tokenizer.decode(tail, skip_special_tokens=True)
         solutions.append(solution)
 
     return solutions
