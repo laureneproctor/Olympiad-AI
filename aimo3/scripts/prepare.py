@@ -38,6 +38,17 @@ _STEP_CUES = ("therefore", "thus", "hence", "so", "because", "then", "implies")
 _CORRECTION_CUES = ("actually", "wait", "i was wrong", "correction", "contradiction")
 
 
+def _resolve_sft_config_path(sft_config_ref):
+    """Resolve an SFT config from absolute path, relative path, or config filename."""
+    if not sft_config_ref:
+        raise ValueError("sft_config_ref is required (e.g., 'sft_qwen.yaml' or full path)")
+
+    if os.path.isabs(sft_config_ref) or os.path.exists(sft_config_ref):
+        return sft_config_ref
+
+    return helpers.get_config_path(sft_config_ref)
+
+
 def parse_single_integer_final_answer(value):
     """
     Parse a value as exactly one integer answer.
@@ -451,8 +462,9 @@ def convert_to_prompt_format(example, system_prompt):
     return output
 
 
-def format_sft_splits(prepared):
-    sft_config = helpers.load_yaml(helpers.get_config_path("sft.yaml"))
+def format_sft_splits(prepared, sft_config_ref):
+    sft_config_path = _resolve_sft_config_path(sft_config_ref)
+    sft_config = helpers.load_yaml(sft_config_path)
     system_prompt = sft_config["prompting"]["system_prompt"]
 
     fmtd = {}
@@ -473,7 +485,7 @@ def format_sft_splits(prepared):
 # --------------------------------------------------------------------------------
 # Run one experiment from YAML
 # --------------------------------------------------------------------------------
-def run_exp(exp_name):
+def run_exp(exp_name, sft_config_ref):
     """
     This function runs the data preparation process for a specific experiment defined in a YAML configuration file.
     It loads the dataset, applies filtering, selects a specified number of rows, splits the data into training,
@@ -504,7 +516,8 @@ def run_exp(exp_name):
     row_selection = take_n_rows(filtered, n, seed)
     ds_train_raw, ds_val1_raw, ds_val2_raw, ds_test_raw = split_train_val_test(row_selection, split_config, seed)
 
-    sft_config = helpers.load_yaml(helpers.get_config_path("sft.yaml"))
+    sft_config_path = _resolve_sft_config_path(sft_config_ref)
+    sft_config = helpers.load_yaml(sft_config_path)
     prepared_root = sft_config["paths"]["prepared_splits_root"]
     save_dir = os.path.join(prepared_root, "splits", exp_name, str(n))
     save_splits(ds_train_raw, ds_val1_raw, ds_val2_raw, ds_test_raw, save_dir)
@@ -573,7 +586,7 @@ def preview_quality_filter_counts(exp_names=None):
     return results
 
 
-def run_all_experiments(exp_names=None):
+def run_all_experiments(exp_names=None, sft_config_ref=None):
     """
     Run data preparation for multiple experiments while loading/filtering the dataset only once.
 
@@ -601,7 +614,8 @@ def run_all_experiments(exp_names=None):
     filtered = apply_filter(cot_data, filtering_config)
     filtered = add_reasoning_quality_rating(filtered)
 
-    sft_config = helpers.load_yaml(helpers.get_config_path("sft.yaml"))
+    sft_config_path = _resolve_sft_config_path(sft_config_ref)
+    sft_config = helpers.load_yaml(sft_config_path)
     prepared_root = sft_config["paths"]["prepared_splits_root"]
 
     shuffled_by_seed = {}

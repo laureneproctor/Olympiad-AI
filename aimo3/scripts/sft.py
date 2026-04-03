@@ -24,7 +24,12 @@ def load_configs(sft_config_path=None):
             prepared_data_path, output_directory)
     """
     if sft_config_path is None:
-        sft_config_path = helpers.get_config_path("sft.yaml")
+        raise ValueError(
+            "sft_config_path is required (e.g., 'configs/sft_qwen.yaml' or 'configs/sft_deepseekmath.yaml')."
+        )
+
+    if not os.path.isabs(sft_config_path) and not os.path.exists(sft_config_path):
+        sft_config_path = str(helpers.get_config_path(sft_config_path))
 
     sft_config = helpers.load_yaml(sft_config_path)
 
