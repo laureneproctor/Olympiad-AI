@@ -273,6 +273,7 @@ def get_inference_dtype():
 
 def load_eval_model(
     model_path: str,
+    tokenizer_path: Optional[str] = None,
     trust_remote_code: bool = True,
 ):
     """
@@ -283,11 +284,38 @@ def load_eval_model(
         Output:
         - tuple: (tokenizer, model)
     """
-    tok = AutoTokenizer.from_pretrained(
-        model_path,
-        use_fast=True,
-        trust_remote_code=trust_remote_code,
-    )
+    tokenizer_candidates = [model_path]
+    if tokenizer_path and tokenizer_path not in tokenizer_candidates:
+        tokenizer_candidates.append(tokenizer_path)
+
+    tok = None
+    tokenizer_errors = []
+    for candidate in tokenizer_candidates:
+        try:
+            tok = AutoTokenizer.from_pretrained(
+                candidate,
+                use_fast=True,
+                trust_remote_code=trust_remote_code,
+            )
+            break
+        except Exception as e_fast:
+            tokenizer_errors.append(f"{candidate} (fast): {e_fast}")
+            try:
+                tok = AutoTokenizer.from_pretrained(
+                    candidate,
+                    use_fast=False,
+                    trust_remote_code=trust_remote_code,
+                )
+                break
+            except Exception as e_slow:
+                tokenizer_errors.append(f"{candidate} (slow): {e_slow}")
+
+    if tok is None:
+        error_blob = "\n".join(tokenizer_errors)
+        raise ValueError(
+            "Failed to load tokenizer from model checkpoint or base tokenizer path. "
+            f"Tried: {tokenizer_candidates}\n{error_blob}"
+        )
     if tok.pad_token is None:
         tok.pad_token = tok.eos_token
     tok.padding_side = "right"
@@ -474,12 +502,47 @@ def resolve_total(max_items, ds_len: int) -> int:
     return min(max_items, ds_len)
 
 
+def extract_problem_text_from_prompt(prompt: str) -> str:
+    """
+    Extracts raw problem text from the formatted evaluation prompt.
+    """
+    text = str(prompt)
+    marker_start = "\n\nProblem:\n"
+    marker_end = "\n\nSolution:\n"
+
+    if marker_start in text and marker_end in text:
+        try:
+            start_idx = text.index(marker_start) + len(marker_start)
+            end_idx = text.index(marker_end, start_idx)
+            return text[start_idx:end_idx].strip()
+        except ValueError:
+            pass
+
+    return text.strip()
+
+
+def problem_edges(problem_text: str, edge_chars: int = 120) -> Tuple[str, str]:
+    """
+    Returns the beginning and ending snippets of a problem for concise logging.
+    """
+    clean = " ".join(str(problem_text).split())
+    if edge_chars <= 0:
+        edge_chars = 120
+
+    if len(clean) <= edge_chars:
+        return clean, clean
+
+    return clean[:edge_chars], clean[-edge_chars:]
+
+
 def eval_split_pass1(
     model,
     tokenizer,
     ds_split: Dataset,
     max_items: Optional[int] = 100,
     max_new_tokens: int = 512,
+    print_example_details: bool = False,
+    problem_edge_chars: int = 120,
 ) -> Dict[str, float]:
     """
     Evaluates one dataset split with greedy decoding (pass@1).
@@ -497,17 +560,29 @@ def eval_split_pass1(
     total = resolve_total(max_items, len(ds_split))
 
     for i in tqdm(range(total), desc="Pass@1 Evaluation", total=total, unit="example"):
+        prompt = ds_split[i]["prompt"]
         pred, is_valid, _ = solve_pass1(
             model=model,
             tokenizer=tokenizer,
-            prompt=ds_split[i]["prompt"],
+            prompt=prompt,
             max_new_tokens=max_new_tokens,
         )
         gt = normalize_to_int_str(ds_split[i]["expected_answer"])
+        is_correct = pred is not None and gt is not None and pred == gt
+
+        if print_example_details:
+            problem_text = extract_problem_text_from_prompt(prompt)
+            p_start, p_end = problem_edges(problem_text, edge_chars=problem_edge_chars)
+            print(f"\n[Example {i + 1}/{total}]")
+            print(f"problem_begin: {p_start}")
+            print(f"problem_end: {p_end}")
+            print(f"answer_extracted: {pred}")
+            print(f"real_answer: {gt}")
+            print(f"correct: {is_correct}")
 
         if is_valid:
             valid += 1
-        if pred is not None and gt is not None and pred == gt:
+        if is_correct:
             correct += 1
 
     return {
@@ -790,6 +865,8 @@ def run_evaluation(evaluate_config_path=None):
     reporting_yaml = evaluate_config.get("reporting", {})
     data_yaml = sft_config.get("data", {})
     split_name = eval_yaml.get("split", "test")
+    print_example_details = bool(eval_yaml.get("print_example_details", False))
+    problem_edge_chars = int(eval_yaml.get("problem_edge_chars", 120))
     system_prompt = (
         evaluate_config.get("prompting", {}).get("system_prompt")
         or sft_config["prompting"]["system_prompt"]
@@ -802,6 +879,8 @@ def run_evaluation(evaluate_config_path=None):
     print("Dataset path:", dataset_path)
     print("Checkpoint:", model_checkpoint)
     print("Eval split:", split_name)
+    if print_example_details:
+        print("Per-example detail logging enabled")
 
     # Loads the evaluation split and formats it into prompts with expected answers.
     ds_raw = load_eval_split(dataset_path, split_name)
@@ -812,7 +891,11 @@ def run_evaluation(evaluate_config_path=None):
         answer_field=answer_field,
     )
     # Loads the model and tokenizer for evaluation.
-    tokenizer, model = load_eval_model(model_checkpoint)
+    tokenizer_source = model_config.get("tokenizer_name") or model_config.get("name")
+    tokenizer, model = load_eval_model(
+        model_checkpoint,
+        tokenizer_path=tokenizer_source,
+    )
     
     # Runs the specified evaluation metrics (pass@1 and/or maj@N) on the evaluation split, collecting results in a dictionary
     results = {
@@ -835,6 +918,8 @@ def run_evaluation(evaluate_config_path=None):
             ds_split=ds_eval,
             max_items=eval_yaml.get("max_items", 100),
             max_new_tokens=eval_yaml.get("pass1_max_new_tokens", 512),
+            print_example_details=print_example_details,
+            problem_edge_chars=problem_edge_chars,
         )
 
     if eval_yaml.get("eval_majn", True):
