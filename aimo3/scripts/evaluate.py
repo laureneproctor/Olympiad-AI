@@ -152,7 +152,7 @@ def extract_last_int_fallback(text: str) -> Optional[str]:
     return matches[-1].strip()
 
 
-def extract_answer(text: str, allow_fallback: bool = False) -> Optional[str]:
+def extract_answer(text: str) -> Optional[str]:
     """
     Extracts and normalizes the final validated answer.
     Input:
@@ -161,7 +161,7 @@ def extract_answer(text: str, allow_fallback: bool = False) -> Optional[str]:
     - answer: normalized answer string, or None if invalid/not found
     """
     raw = extract_final_answer(text)
-    if raw is None and allow_fallback:
+    if raw is None:
         raw = extract_last_int_fallback(text)
     return normalize_to_int_str(raw)
 
@@ -296,7 +296,6 @@ def load_eval_model(
         "device_map": "auto",
         "torch_dtype": get_inference_dtype(),
         "trust_remote_code": trust_remote_code,
-        "ignore_mismatched_sizes": True,
     }
 
     if AutoPeftModelForCausalLM is not None:
@@ -394,7 +393,6 @@ def generate_n_solutions(
 
 def majority_vote_answer(
     generations: List[str],
-    allow_fallback_extraction: bool = False,
 ) -> Tuple[Optional[str], Counter, List[str], float]:
     """
     Aggregates extracted answers from generations with majority voting.
@@ -408,7 +406,7 @@ def majority_vote_answer(
     """
     extracted_norm = []
     for generation in generations:
-        norm = extract_answer(generation, allow_fallback=allow_fallback_extraction)
+        norm = extract_answer(generation)
         if norm is not None:
             extracted_norm.append(norm)
 
@@ -428,7 +426,6 @@ def solve_pass1(
     tokenizer,
     prompt: str,
     max_new_tokens: int = 512,
-    allow_fallback_extraction: bool = False,
 ) -> Tuple[Optional[str], bool, str]:
     """
         Generates one greedy response and extracts its normalized answer.
@@ -454,7 +451,7 @@ def solve_pass1(
     )
 
     text = tokenizer.decode(output[0][prompt_len:], skip_special_tokens=True)
-    pred = extract_answer(text, allow_fallback=allow_fallback_extraction)
+    pred = extract_answer(text)
 
     return pred, (pred is not None), text
 
@@ -483,7 +480,6 @@ def eval_split_pass1(
     ds_split: Dataset,
     max_items: Optional[int] = 100,
     max_new_tokens: int = 512,
-    allow_fallback_extraction: bool = False,
 ) -> Dict[str, float]:
     """
     Evaluates one dataset split with greedy decoding (pass@1).
@@ -506,7 +502,6 @@ def eval_split_pass1(
             tokenizer=tokenizer,
             prompt=ds_split[i]["prompt"],
             max_new_tokens=max_new_tokens,
-            allow_fallback_extraction=allow_fallback_extraction,
         )
         gt = normalize_to_int_str(ds_split[i]["expected_answer"])
 
@@ -531,7 +526,6 @@ def eval_split_majN(
     max_new_tokens: int = 512,
     temperature: float = 0.7,
     top_p: float = 0.95,
-    allow_fallback_extraction: bool = False,
 ) -> Dict[str, float]:
     """
     Evaluates one dataset split with sampling and majority voting.
@@ -569,10 +563,7 @@ def eval_split_majN(
             top_p=top_p,
         )
 
-        best, _counts, extracted_norm, agreement = majority_vote_answer(
-            generations,
-            allow_fallback_extraction=allow_fallback_extraction,
-        )
+        best, _counts, extracted_norm, agreement = majority_vote_answer(generations)
 
         if len(extracted_norm) > 0:
             problems_with_any_valid += 1
@@ -613,7 +604,6 @@ def print_preview_examples(
     majn_temperature: float,
     majn_top_p: float,
     generation_preview_chars: int = 180,
-    allow_fallback_extraction: bool = False,
 ):
     """
     Prints a small qualitative preview with gold answer, pass@1, and maj@N details.
@@ -645,7 +635,6 @@ def print_preview_examples(
             tokenizer=tokenizer,
             prompt=prompt,
             max_new_tokens=pass1_max_new_tokens,
-            allow_fallback_extraction=allow_fallback_extraction,
         )
         pass1_correct = (
             pass1_pred is not None and gt is not None and pass1_pred == gt
@@ -660,10 +649,7 @@ def print_preview_examples(
             temperature=majn_temperature,
             top_p=majn_top_p,
         )
-        maj_pred, vote_counts, extracted_norm, agreement = majority_vote_answer(
-            generations,
-            allow_fallback_extraction=allow_fallback_extraction,
-        )
+        maj_pred, vote_counts, extracted_norm, agreement = majority_vote_answer(generations)
         maj_correct = maj_pred is not None and gt is not None and maj_pred == gt
 
         print(f"\n--- Example {i + 1}/{total} ---")
@@ -701,7 +687,6 @@ def print_differing_examples_pass1(
     answer_field: str,
     max_new_tokens: int = 512,
     generation_preview_chars: int = 300,
-    allow_fallback_extraction: bool = False,
 ):
     """
     Print examples where baseline and SFT differ on pass@1.
@@ -721,14 +706,12 @@ def print_differing_examples_pass1(
             tokenizer=baseline_tokenizer,
             prompt=prompt,
             max_new_tokens=max_new_tokens,
-            allow_fallback_extraction=allow_fallback_extraction,
         )
         sft_pred, sft_valid, sft_text = solve_pass1(
             model=sft_model,
             tokenizer=sft_tokenizer,
             prompt=prompt,
             max_new_tokens=max_new_tokens,
-            allow_fallback_extraction=allow_fallback_extraction,
         )
 
         base_correct = (base_pred is not None and gt is not None and base_pred == gt)
@@ -807,8 +790,6 @@ def run_evaluation(evaluate_config_path=None):
     reporting_yaml = evaluate_config.get("reporting", {})
     data_yaml = sft_config.get("data", {})
     split_name = eval_yaml.get("split", "test")
-    allow_fallback_extraction = bool(eval_yaml.get("allow_fallback_extraction", False))
-    extraction_mode = "fallback" if allow_fallback_extraction else "strict_final_answer"
     system_prompt = (
         evaluate_config.get("prompting", {}).get("system_prompt")
         or sft_config["prompting"]["system_prompt"]
@@ -821,7 +802,6 @@ def run_evaluation(evaluate_config_path=None):
     print("Dataset path:", dataset_path)
     print("Checkpoint:", model_checkpoint)
     print("Eval split:", split_name)
-    print("Answer extraction mode:", extraction_mode)
 
     # Loads the evaluation split and formats it into prompts with expected answers.
     ds_raw = load_eval_split(dataset_path, split_name)
@@ -844,7 +824,6 @@ def run_evaluation(evaluate_config_path=None):
             "dataset_path": dataset_path,
             "split": split_name,
             "n_dataset_rows": len(ds_eval),
-            "answer_extraction_mode": extraction_mode,
         }
     }
 
@@ -856,7 +835,6 @@ def run_evaluation(evaluate_config_path=None):
             ds_split=ds_eval,
             max_items=eval_yaml.get("max_items", 100),
             max_new_tokens=eval_yaml.get("pass1_max_new_tokens", 512),
-            allow_fallback_extraction=allow_fallback_extraction,
         )
 
     if eval_yaml.get("eval_majn", True):
@@ -870,7 +848,6 @@ def run_evaluation(evaluate_config_path=None):
             max_new_tokens=eval_yaml.get("majn_max_new_tokens", 512),
             temperature=eval_yaml.get("majn_temperature", 0.7),
             top_p=eval_yaml.get("majn_top_p", 0.95),
-            allow_fallback_extraction=allow_fallback_extraction,
         )
 
 
