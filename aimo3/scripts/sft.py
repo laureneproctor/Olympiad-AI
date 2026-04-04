@@ -12,122 +12,81 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 from trl import SFTConfig, SFTTrainer
 
 
-class ReasoningAnswerMaskingCollator:
+class TokenizedPaddingCollator:
     """
-    Pads tokenized examples and masks labels so loss is computed only on
-    the reasoning + final answer portion that starts at a response template.
+    Pads pretokenized examples that already contain labels.
     """
 
-    def __init__(
-        self,
-        tokenizer,
-        response_template="\n\nSolution:\n",
-        log_every_batches=200,
-        warn_skip_rate=0.02,
-    ):
+    def __init__(self, tokenizer):
         self.tokenizer = tokenizer
-        self.response_template = response_template
-        self.response_template_ids = tokenizer.encode(response_template, add_special_tokens=False)
-        self.log_every_batches = int(log_every_batches)
-        self.warn_skip_rate = float(warn_skip_rate)
-        self.total_examples = 0
-        self.skipped_examples = 0
-        self.batch_count = 0
-
-        # Fallback for runs where prompt may have a single leading newline before Solution.
-        alt_template = "\nSolution:\n"
-        self.alt_template_ids = tokenizer.encode(alt_template, add_special_tokens=False)
-
-        if not self.response_template_ids:
-            raise ValueError("response_template tokenization is empty; cannot apply completion-only masking")
-
-    @staticmethod
-    def _find_subsequence(sequence, subsequence):
-        if not subsequence or len(subsequence) > len(sequence):
-            return -1
-        last = len(sequence) - len(subsequence) + 1
-        for i in range(last):
-            if sequence[i : i + len(subsequence)] == subsequence:
-                return i
-        return -1
 
     def __call__(self, features):
+        labels = [feature.pop("labels") for feature in features]
         batch = self.tokenizer.pad(features, padding=True, return_tensors="pt")
 
-        labels = batch["input_ids"].clone()
-        labels[batch["attention_mask"] == 0] = -100
+        max_length = batch["input_ids"].shape[1]
+        padded_labels = []
+        for label_ids in labels:
+            if len(label_ids) < max_length:
+                label_ids = label_ids + [-100] * (max_length - len(label_ids))
+            padded_labels.append(label_ids)
 
-        skipped_in_batch = 0
-
-        for i in range(labels.shape[0]):
-            ids = batch["input_ids"][i].tolist()
-
-            start = self._find_subsequence(ids, self.response_template_ids)
-            template_len = len(self.response_template_ids)
-            if start < 0:
-                start = self._find_subsequence(ids, self.alt_template_ids)
-                template_len = len(self.alt_template_ids)
-
-            if start < 0:
-                # If the boundary marker is missing, skip this sample for safety.
-                labels[i, :] = -100
-                skipped_in_batch += 1
-                continue
-
-            response_start = start + template_len
-            labels[i, :response_start] = -100
-
-        self.batch_count += 1
-        self.total_examples += labels.shape[0]
-        self.skipped_examples += skipped_in_batch
-
-        if self.log_every_batches > 0 and (self.batch_count % self.log_every_batches == 0):
-            skip_rate = (self.skipped_examples / self.total_examples) if self.total_examples else 0.0
-            print(
-                "Masking diagnostics:",
-                f"skipped={self.skipped_examples}/{self.total_examples}",
-                f"({skip_rate:.2%})",
-            )
-            if skip_rate > self.warn_skip_rate:
-                print(
-                    "Warning: high masked-sample skip rate. "
-                    "Check response_template formatting and dataset prompt construction."
-                )
-
-        batch["labels"] = labels
+        batch["labels"] = torch.tensor(padded_labels, dtype=torch.long)
         return batch
 
 
-def report_boundary_coverage(ds, split_name, response_template, max_examples=2000):
+def tokenize_sft_examples(examples, system_prompt, tokenizer, max_seq_length, completion_only_loss):
     """
-    Quick preflight check: estimate how often the response boundary appears in text.
+    Tokenize examples once up front and precompute labels so training stays fast.
     """
-    if "text" not in ds.column_names:
-        print(f"Boundary coverage check skipped for {split_name}: no 'text' column")
-        return
+    texts = []
+    prompt_texts = []
 
-    alt_template = "\nSolution:\n"
-    total = min(len(ds), int(max_examples))
-    if total == 0:
-        print(f"Boundary coverage check skipped for {split_name}: empty dataset")
-        return
+    for problem, reasoning, answer in zip(examples["problem"], examples["generated_solution"], examples["expected_answer"]):
+        problem = str(problem).strip()
+        reasoning = str(reasoning).strip()
+        answer = str(answer).strip()
 
-    hits = 0
-    for i in range(total):
-        txt = str(ds[i].get("text", ""))
-        if (response_template in txt) or (alt_template in txt):
-            hits += 1
-
-    coverage = hits / total
-    print(
-        f"Boundary coverage [{split_name}] on first {total} rows:",
-        f"{hits}/{total} ({coverage:.2%})",
-    )
-    if coverage < 0.98:
-        print(
-            "Warning: boundary coverage is below 98%. "
-            "Some samples may be skipped by completion-only masking."
+        prompt_text = (
+            system_prompt
+            + "\n\nProblem:\n"
+            + problem
+            + "\n\nSolution:\n"
         )
+        full_text = prompt_text + reasoning + "\nFINAL_ANSWER: " + answer
+        prompt_texts.append(prompt_text)
+        texts.append(full_text)
+
+    tokenized = tokenizer(
+        texts,
+        add_special_tokens=False,
+        truncation=True,
+        max_length=max_seq_length,
+    )
+    prompt_tokenized = tokenizer(
+        prompt_texts,
+        add_special_tokens=False,
+        truncation=True,
+        max_length=max_seq_length,
+    )
+
+    input_ids = tokenized["input_ids"]
+    attention_mask = tokenized["attention_mask"]
+    labels = []
+
+    for ids, prompt_ids in zip(input_ids, prompt_tokenized["input_ids"]):
+        label_ids = list(ids)
+        if completion_only_loss:
+            prompt_len = min(len(prompt_ids), len(label_ids))
+            for idx in range(prompt_len):
+                label_ids[idx] = -100
+        labels.append(label_ids)
+
+    return {
+        "input_ids": input_ids,
+        "attention_mask": attention_mask,
+        "labels": labels,
+    }
 
 # ------------------------------------------------------------------------------
 # Config loading
@@ -247,9 +206,9 @@ def load_prepared_splits(prepared_data_path):
 # ------------------------------------------------------------------------------
 # Format splits
 # ------------------------------------------------------------------------------
-def format_sft_splits(ds_train_raw, ds_val_raw, system_prompt):
+def format_sft_splits(ds_train_raw, ds_val_raw, system_prompt, tokenizer, max_seq_length, completion_only_loss):
     """
-    Formats raw train and validation splits for SFT training.
+    Formats raw train and validation splits for SFT training and precomputes labels.
     Input:
     - ds_train_raw: raw training split
     - ds_val_raw: raw validation split
@@ -257,23 +216,35 @@ def format_sft_splits(ds_train_raw, ds_val_raw, system_prompt):
     Output:
     - tuple: (fmtd_train, fmtd_val)
     """
-    print("Formatting train/val splits for SFT")
+    print("Formatting and tokenizing train/val splits for SFT")
 
     fmtd_train = ds_train_raw.map(
-        convert_to_prompt_format,
-        fn_kwargs={"system_prompt": system_prompt},
+        tokenize_sft_examples,
+        batched=True,
+        fn_kwargs={
+            "system_prompt": system_prompt,
+            "tokenizer": tokenizer,
+            "max_seq_length": max_seq_length,
+            "completion_only_loss": completion_only_loss,
+        },
         remove_columns=ds_train_raw.column_names,
-        desc="Formatting train split",
+        desc="Tokenizing train split",
     )
 
     fmtd_val = ds_val_raw.map(
-        convert_to_prompt_format,
-        fn_kwargs={"system_prompt": system_prompt},
+        tokenize_sft_examples,
+        batched=True,
+        fn_kwargs={
+            "system_prompt": system_prompt,
+            "tokenizer": tokenizer,
+            "max_seq_length": max_seq_length,
+            "completion_only_loss": completion_only_loss,
+        },
         remove_columns=ds_val_raw.column_names,
-        desc="Formatting val split",
+        desc="Tokenizing val split",
     )
-    print("Formatted train columns:", fmtd_train.column_names)
-    print("Formatted val columns:", fmtd_val.column_names)
+    print("Tokenized train columns:", fmtd_train.column_names)
+    print("Tokenized val columns:", fmtd_val.column_names)
     return fmtd_train, fmtd_val
 
 
@@ -608,11 +579,21 @@ def train_model(sft_config_path=None):
     ds_train_raw = maybe_filter_by_quality_rating(ds_train_raw, data_yaml, "train")
     ds_val_raw = maybe_filter_by_quality_rating(ds_val_raw, data_yaml, "val")
 
+    # Load tokenizer early so we can pretokenize once instead of masking every batch.
+    tok = load_tokenizer(model_init_path)
+
     if "input_ids" in ds_train_raw.column_names:
         print("Using pre-tokenized splits for training")
         ds_train, ds_val = ds_train_raw, ds_val_raw
     else:
-        ds_train, ds_val = format_sft_splits(ds_train_raw, ds_val_raw, system_prompt)
+        ds_train, ds_val = format_sft_splits(
+            ds_train_raw,
+            ds_val_raw,
+            system_prompt,
+            tokenizer=tok,
+            max_seq_length=training_yaml.get("max_length", training_yaml.get("max_seq_length")),
+            completion_only_loss=bool(training_yaml.get("completion_only_loss", True)),
+        )
 
     # Add early stopping callbacks when configured
     callbacks = []
@@ -626,8 +607,7 @@ def train_model(sft_config_path=None):
             )
         )
 
-    # Load Model and Tokenizer
-    tok = load_tokenizer(model_init_path)
+    # Load Model
     model = load_model(model_init_path, sft_config["quantization"])
 
     # Make tokenizer/model special tokens consistent
@@ -646,26 +626,13 @@ def train_model(sft_config_path=None):
     else:
         print("Tokenizer/model vocab already aligned; skipping embedding resize")
 
-    completion_only_loss = bool(training_yaml.get("completion_only_loss", True))
-    response_template = training_yaml.get("response_template", "\n\nSolution:\n")
-    if completion_only_loss:
-        report_boundary_coverage(ds_train, "train", response_template)
-        report_boundary_coverage(ds_val, "val", response_template)
-
     peft_config = build_peft_config(sft_config["lora"])
     sft_trainer_config = build_sft_config(training_yaml, output_directory)
-    data_collator = None
-    if completion_only_loss:
-        print("Completion-only loss masking enabled")
-        print("Mask boundary template:", repr(response_template))
-        data_collator = ReasoningAnswerMaskingCollator(
-            tokenizer=tok,
-            response_template=response_template,
-            log_every_batches=training_yaml.get("masking_log_every_batches", 200),
-            warn_skip_rate=training_yaml.get("masking_warn_skip_rate", 0.02),
-        )
+    data_collator = TokenizedPaddingCollator(tok)
+    if bool(training_yaml.get("completion_only_loss", True)):
+        print("Completion-only loss masking enabled (pretokenized, fast path)")
     else:
-        print("Completion-only loss masking disabled (full-sequence loss)")
+        print("Completion-only loss masking disabled (full-sequence labels)")
 
     save_run_metadata(
         output_directory,
