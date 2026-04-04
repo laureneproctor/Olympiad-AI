@@ -296,6 +296,7 @@ def load_eval_model(
         "device_map": "auto",
         "torch_dtype": get_inference_dtype(),
         "trust_remote_code": trust_remote_code,
+        "ignore_mismatched_sizes": True,
     }
 
     if AutoPeftModelForCausalLM is not None:
