@@ -81,3 +81,7 @@ training:
   gradient_checkpointing: true
   report_to: []
   packing: false
+  completion_only_loss: true
+  response_template: "\n\nSolution:\n"
+  masking_log_every_batches: 200
+  masking_warn_skip_rate: 0.02

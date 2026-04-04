@@ -11,6 +11,124 @@ from peft import LoraConfig, prepare_model_for_kbit_training
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig, EarlyStoppingCallback
 from trl import SFTConfig, SFTTrainer
 
+
+class ReasoningAnswerMaskingCollator:
+    """
+    Pads tokenized examples and masks labels so loss is computed only on
+    the reasoning + final answer portion that starts at a response template.
+    """
+
+    def __init__(
+        self,
+        tokenizer,
+        response_template="\n\nSolution:\n",
+        log_every_batches=200,
+        warn_skip_rate=0.02,
+    ):
+        self.tokenizer = tokenizer
+        self.response_template = response_template
+        self.response_template_ids = tokenizer.encode(response_template, add_special_tokens=False)
+        self.log_every_batches = int(log_every_batches)
+        self.warn_skip_rate = float(warn_skip_rate)
+        self.total_examples = 0
+        self.skipped_examples = 0
+        self.batch_count = 0
+
+        # Fallback for runs where prompt may have a single leading newline before Solution.
+        alt_template = "\nSolution:\n"
+        self.alt_template_ids = tokenizer.encode(alt_template, add_special_tokens=False)
+
+        if not self.response_template_ids:
+            raise ValueError("response_template tokenization is empty; cannot apply completion-only masking")
+
+    @staticmethod
+    def _find_subsequence(sequence, subsequence):
+        if not subsequence or len(subsequence) > len(sequence):
+            return -1
+        last = len(sequence) - len(subsequence) + 1
+        for i in range(last):
+            if sequence[i : i + len(subsequence)] == subsequence:
+                return i
+        return -1
+
+    def __call__(self, features):
+        batch = self.tokenizer.pad(features, padding=True, return_tensors="pt")
+
+        labels = batch["input_ids"].clone()
+        labels[batch["attention_mask"] == 0] = -100
+
+        skipped_in_batch = 0
+
+        for i in range(labels.shape[0]):
+            ids = batch["input_ids"][i].tolist()
+
+            start = self._find_subsequence(ids, self.response_template_ids)
+            template_len = len(self.response_template_ids)
+            if start < 0:
+                start = self._find_subsequence(ids, self.alt_template_ids)
+                template_len = len(self.alt_template_ids)
+
+            if start < 0:
+                # If the boundary marker is missing, skip this sample for safety.
+                labels[i, :] = -100
+                skipped_in_batch += 1
+                continue
+
+            response_start = start + template_len
+            labels[i, :response_start] = -100
+
+        self.batch_count += 1
+        self.total_examples += labels.shape[0]
+        self.skipped_examples += skipped_in_batch
+
+        if self.log_every_batches > 0 and (self.batch_count % self.log_every_batches == 0):
+            skip_rate = (self.skipped_examples / self.total_examples) if self.total_examples else 0.0
+            print(
+                "Masking diagnostics:",
+                f"skipped={self.skipped_examples}/{self.total_examples}",
+                f"({skip_rate:.2%})",
+            )
+            if skip_rate > self.warn_skip_rate:
+                print(
+                    "Warning: high masked-sample skip rate. "
+                    "Check response_template formatting and dataset prompt construction."
+                )
+
+        batch["labels"] = labels
+        return batch
+
+
+def report_boundary_coverage(ds, split_name, response_template, max_examples=2000):
+    """
+    Quick preflight check: estimate how often the response boundary appears in text.
+    """
+    if "text" not in ds.column_names:
+        print(f"Boundary coverage check skipped for {split_name}: no 'text' column")
+        return
+
+    alt_template = "\nSolution:\n"
+    total = min(len(ds), int(max_examples))
+    if total == 0:
+        print(f"Boundary coverage check skipped for {split_name}: empty dataset")
+        return
+
+    hits = 0
+    for i in range(total):
+        txt = str(ds[i].get("text", ""))
+        if (response_template in txt) or (alt_template in txt):
+            hits += 1
+
+    coverage = hits / total
+    print(
+        f"Boundary coverage [{split_name}] on first {total} rows:",
+        f"{hits}/{total} ({coverage:.2%})",
+    )
+    if coverage < 0.98:
+        print(
+            "Warning: boundary coverage is below 98%. "
+            "Some samples may be skipped by completion-only masking."
+        )
+
 # ------------------------------------------------------------------------------
 # Config loading
 # ------------------------------------------------------------------------------
@@ -311,6 +429,7 @@ def build_sft_config(training_yaml, output_directory):
 
     max_length = training_yaml.get("max_length", training_yaml.get("max_seq_length"))
     eval_strategy = training_yaml.get("eval_strategy", training_yaml.get("evaluation_strategy"))
+    save_strategy = training_yaml.get("save_strategy")
 
     config_kwargs = {
         "output_dir": output_directory,
@@ -323,12 +442,12 @@ def build_sft_config(training_yaml, output_directory):
         "warmup_steps": training_yaml["warmup_steps"],
         "logging_steps": training_yaml["logging_steps"],
         "eval_strategy": eval_strategy,
+        "save_strategy": save_strategy,
         "eval_steps": training_yaml["eval_steps"],
         "save_steps": training_yaml["save_steps"],
         "save_total_limit": training_yaml["save_total_limit"],
         "bf16": training_yaml.get("bf16", False),
         "report_to": training_yaml.get("report_to", []),
-        "response_template": "\nSolution:",
     }
 
     optional_keys = [
@@ -342,18 +461,42 @@ def build_sft_config(training_yaml, output_directory):
         "metric_for_best_model",
         "greater_is_better",
         "load_best_model_at_end",
-        "response_template",
     ]
     for key in optional_keys:
         if key in training_yaml:
             config_kwargs[key] = training_yaml[key]
 
     valid_params = set(inspect.signature(SFTConfig.__init__).parameters.keys())
+
+    # Handle TRL naming differences across versions.
+    if max_length is not None:
+        if "max_seq_length" not in valid_params and "max_length" in valid_params:
+            config_kwargs.pop("max_seq_length", None)
+            config_kwargs["max_length"] = max_length
+        elif "max_seq_length" in valid_params and "max_length" in valid_params:
+            config_kwargs["max_length"] = max_length
+
+    if eval_strategy is not None:
+        if "eval_strategy" not in valid_params and "evaluation_strategy" in valid_params:
+            config_kwargs.pop("eval_strategy", None)
+            config_kwargs["evaluation_strategy"] = eval_strategy
+        elif "eval_strategy" in valid_params and "evaluation_strategy" in valid_params:
+            config_kwargs["evaluation_strategy"] = eval_strategy
+
     filtered_kwargs = {k: v for k, v in config_kwargs.items() if k in valid_params}
 
     dropped = set(config_kwargs.keys()) - set(filtered_kwargs.keys())
     if dropped:
         print(f"Note: dropped unsupported SFTConfig params for this TRL version: {dropped}")
+
+    # Fail fast on critical training-behavior mismatches.
+    has_seq_len_in_yaml = ("max_seq_length" in training_yaml) or ("max_length" in training_yaml)
+    has_seq_len_in_config = ("max_seq_length" in filtered_kwargs) or ("max_length" in filtered_kwargs)
+    if has_seq_len_in_yaml and not has_seq_len_in_config:
+        raise ValueError(
+            "Configured sequence length was not accepted by installed TRL SFTConfig. "
+            "Pin/upgrade TRL or update key mapping."
+        )
 
     return SFTConfig(**filtered_kwargs)
 
@@ -494,11 +637,36 @@ def train_model(sft_config_path=None):
     model.config.pad_token_id = tok.pad_token_id
     model.generation_config.pad_token_id = tok.pad_token_id
 
-    # Important: ensure embedding matrix matches tokenizer size
-    model.resize_token_embeddings(len(tok))
+    # Resize only when needed; avoids unnecessary PEFT embedding-save warning noise.
+    model_vocab_size = model.get_input_embeddings().weight.shape[0]
+    tokenizer_vocab_size = len(tok)
+    if model_vocab_size != tokenizer_vocab_size:
+        print("Resizing token embeddings:", model_vocab_size, "->", tokenizer_vocab_size)
+        model.resize_token_embeddings(tokenizer_vocab_size)
+    else:
+        print("Tokenizer/model vocab already aligned; skipping embedding resize")
+
+    completion_only_loss = bool(training_yaml.get("completion_only_loss", True))
+    response_template = training_yaml.get("response_template", "\n\nSolution:\n")
+    if completion_only_loss:
+        report_boundary_coverage(ds_train, "train", response_template)
+        report_boundary_coverage(ds_val, "val", response_template)
 
     peft_config = build_peft_config(sft_config["lora"])
     sft_trainer_config = build_sft_config(training_yaml, output_directory)
+    data_collator = None
+    if completion_only_loss:
+        print("Completion-only loss masking enabled")
+        print("Mask boundary template:", repr(response_template))
+        data_collator = ReasoningAnswerMaskingCollator(
+            tokenizer=tok,
+            response_template=response_template,
+            log_every_batches=training_yaml.get("masking_log_every_batches", 200),
+            warn_skip_rate=training_yaml.get("masking_warn_skip_rate", 0.02),
+        )
+    else:
+        print("Completion-only loss masking disabled (full-sequence loss)")
+
     save_run_metadata(
         output_directory,
         sft_config,
@@ -515,6 +683,7 @@ def train_model(sft_config_path=None):
         eval_dataset=ds_val,
         processing_class=tok,
         peft_config=peft_config,
+        data_collator=data_collator,
         callbacks=callbacks,
     )
     print("Starting training")
