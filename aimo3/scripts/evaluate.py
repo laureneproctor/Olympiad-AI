@@ -354,7 +354,7 @@ def eval_split_pass1(
     """Evaluate dataset with greedy generation (pass@1)."""
     correct = 0
     valid = 0
-    total = min(max_items, len(ds_split)) if max_items else len(ds_split)
+    total = len(ds_split) if max_items is None else min(max_items, len(ds_split))
 
     for i in tqdm(range(total), desc="Pass@1 Evaluation", unit="example"):
         prompt = ds_split[i]["prompt"]
@@ -396,7 +396,7 @@ def eval_split_majN(
     total_valid_votes = 0
     total_votes = 0
 
-    total = min(max_items, len(ds_split)) if max_items else len(ds_split)
+    total = len(ds_split) if max_items is None else min(max_items, len(ds_split))
 
     for i in tqdm(range(total), desc=f"Maj@{n_samples} Evaluation", unit="example"):
         prompt = ds_split[i]["prompt"]
@@ -447,7 +447,9 @@ def run_evaluation(evaluate_config_path=None):
     # Load configs
     (
         evaluate_config,
+        _data_config,
         sft_config,
+        _exp_config,
         model_config,
         dataset_path,
         model_checkpoint,
