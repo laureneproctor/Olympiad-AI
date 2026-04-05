@@ -237,8 +237,9 @@ def load_eval_model(
 
     model_kwargs = {
         "device_map": "auto",
-        "torch_dtype": get_inference_dtype(),
+        "dtype": get_inference_dtype(),
         "trust_remote_code": trust_remote_code,
+        "ignore_mismatched_sizes": True,
     }
 
     if AutoPeftModelForCausalLM is not None:
@@ -256,6 +257,17 @@ def load_eval_model(
         model_path,
         **model_kwargs,
     )
+
+    # Keep model/tokenizer vocabulary sizes aligned for generation.
+    model_vocab = model.get_input_embeddings().weight.shape[0]
+    tok_vocab = len(tok)
+    if model_vocab != tok_vocab:
+        print(
+            f"Resizing token embeddings from {model_vocab} to {tok_vocab} "
+            "to match tokenizer vocab size."
+        )
+        model.resize_token_embeddings(tok_vocab)
+
     return tok, model
 
 
