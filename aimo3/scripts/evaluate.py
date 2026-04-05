@@ -49,6 +49,7 @@ def load_configs(evaluate_config_path=None):
         dataset_path = os.path.join(
             sft_config["paths"]["prepared_splits_root"],
             "splits",
+            exp_name,
             str(exp_config["N"]),
         )
 
