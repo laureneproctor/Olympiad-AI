@@ -7,7 +7,7 @@ paths:
   model_checkpoint: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/models/sft_deepseekmath_exp3"
   dataset_path: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/processed_splits/omr_aimo3/splits/exp3/50000"
   dataset_split: "val2"
-  max_items: 250
+  max_items: 175
   output_path: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/rl_train/mined_deepseekmath_exp3_50000"
 
 generation:
