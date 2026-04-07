@@ -1,0 +1,58 @@
+# Defines GRPO/RLVR training settings for Qwen exp3
+run:
+  seed: 42
+  experiment_name: "exp3"
+  model_key: "qwen"
+
+paths:
+  data_config_path: null
+  starting_checkpoint: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/models/sft_qwen_exp3"
+  rl_train_path: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/rl_train/mined_qwen_exp3_50000"
+  output_root: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/models"
+
+prompting:
+  system_prompt: |
+    You are a mathematical problem solver.
+    Solve step-by-step.
+    At the end, output a line exactly of the form:
+    FINAL_ANSWER: <integer>
+    Where <integer> is an integer between 0 and 99999.
+
+quantization:
+  enabled: false
+  load_in_4bit: true
+  bnb_4bit_quant_type: "nf4"
+  bnb_4bit_use_double_quant: true
+  bnb_4bit_compute_dtype: "bfloat16"
+
+lora:
+  r: 16
+  lora_alpha: 32
+  lora_dropout: 0.05
+  bias: "none"
+  task_type: "CAUSAL_LM"
+  target_modules:
+    - "q_proj"
+    - "k_proj"
+    - "v_proj"
+    - "o_proj"
+    - "gate_proj"
+    - "up_proj"
+    - "down_proj"
+
+training:
+  per_device_train_batch_size: 1
+  gradient_accumulation_steps: 4
+  num_train_epochs: 1
+  learning_rate: 5.0e-6
+  optim: "adamw_torch"
+  max_prompt_length: 384
+  max_completion_length: 256
+  group_size: 2
+  beta: 0.04
+  logging_steps: 20
+  save_steps: 500
+  save_total_limit: 1
+  bf16: true
+  gradient_checkpointing: true
+  report_to: []
