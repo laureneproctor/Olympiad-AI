@@ -8,7 +8,7 @@ paths:
   dataset_path: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/processed_splits/omr_aimo3/splits/exp3/50000"
   dataset_split: "val2"
   max_items: 250
-  output_path: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/rl_train/mined_deepseekmath_exp3_v1"
+  output_path: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/rl_train/mined_deepseekmath_exp3_50000"
 
 generation:
   k_solutions: 8
@@ -26,4 +26,4 @@ failure_criteria:
 
 reporting:
   save_mining_report: true
-  report_path: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/runs/mining_report_deepseekmath_exp3_v1.json"
+  report_path: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/runs/mining_report_deepseekmath_exp3_50000.json"

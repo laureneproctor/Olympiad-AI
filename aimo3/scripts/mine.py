@@ -261,8 +261,10 @@ def load_model_and_tokenizer(model_path: str, trust_remote_code: bool = True):
         tok.pad_token = tok.eos_token
     # Ensure padding is done on right side, which is typically required for causal language models where the model generates text after the input prompt
     tok.padding_side = "right"
+    # Original strict behavior (kept as comments for quick rollback):
+    # model_kwargs = {"device_map": "auto","torch_dtype": get_inference_dtype(), "trust_remote_code": trust_remote_code}
     # Define the model loading parameters including device mapping for automatic hardware utilization, the data type for inference, and trust_remote_code for custom model code execution
-    model_kwargs = {"device_map": "auto","torch_dtype": get_inference_dtype(), "trust_remote_code": trust_remote_code}
+    model_kwargs = {"device_map": "auto", "dtype": get_inference_dtype(), "trust_remote_code": trust_remote_code}
     # Set model to none
     model = None
     # If AutoPeftModelForCausalLM is available, attempt to load the model as a PEFT adapter checkpoint.
@@ -271,13 +273,40 @@ def load_model_and_tokenizer(model_path: str, trust_remote_code: bool = True):
     if AutoPeftModelForCausalLM is not None:
         try:
             print("Trying to load as PEFT adapter checkpoint")
-            model = AutoPeftModelForCausalLM.from_pretrained(model_path, **model_kwargs)
+            # Original strict behavior:
+            # model = AutoPeftModelForCausalLM.from_pretrained(model_path, **model_kwargs)
+            model = AutoPeftModelForCausalLM.from_pretrained(
+                model_path,
+                ignore_mismatched_sizes=True,
+                **model_kwargs,
+            )
         except Exception:
             model = None
     # If the model was not successfully loaded as a PEFT adapter, attempt to load it as a standard causal language model.
     if model is None:
         print("Loading as standard causal LM checkpoint")
-        model = AutoModelForCausalLM.from_pretrained(model_path, **model_kwargs)
+        # Original strict behavior:
+        # model = AutoModelForCausalLM.from_pretrained(model_path, **model_kwargs)
+        try:
+            model = AutoModelForCausalLM.from_pretrained(model_path, **model_kwargs)
+        except RuntimeError as exc:
+            # Common with adapter-style checkpoints whose vocab differs from base model.
+            if "ignore_mismatched_sizes" in str(exc):
+                print("Retrying with ignore_mismatched_sizes=True")
+                model = AutoModelForCausalLM.from_pretrained(
+                    model_path,
+                    ignore_mismatched_sizes=True,
+                    **model_kwargs,
+                )
+            else:
+                raise
+
+    # Keep model/tokenizer vocabulary aligned when checkpoint and tokenizer sizes differ.
+    if hasattr(model, "get_input_embeddings") and model.get_input_embeddings() is not None:
+        embedding_rows = model.get_input_embeddings().weight.shape[0]
+        if embedding_rows != len(tok):
+            print(f"Resizing token embeddings from {embedding_rows} to {len(tok)}")
+            model.resize_token_embeddings(len(tok))
     # Return the loaded tokenizer and model as a tuple
     return tok, model
 
