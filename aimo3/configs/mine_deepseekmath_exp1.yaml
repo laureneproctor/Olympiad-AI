@@ -1,0 +1,29 @@
+# Defines how to mine failures for DeepSeekMath exp1
+run:
+  seed: 42
+
+paths:
+  data_config_path: null
+  model_checkpoint: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/models/sft_deepseekmath_exp1"
+  dataset_path: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/processed_splits/omr_aimo3/splits/exp1"
+  dataset_split: "val2"
+  max_items: 250
+  output_path: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/rl_train/mined_deepseekmath_exp1_v1"
+
+generation:
+  k_solutions: 8
+  max_new_tokens: 512
+  temperature: 0.7
+  top_p: 0.95
+
+failure_criteria:
+  mine_if_majority_wrong: true
+  mine_if_low_agreement: true
+  low_agreement_threshold: 0.5
+  mine_if_low_format_validity: true
+  low_format_validity_threshold: 0.5
+  mine_if_no_valid_extraction: true
+
+reporting:
+  save_mining_report: true
+  report_path: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/runs/mining_report_deepseekmath_exp1_v1.json"
