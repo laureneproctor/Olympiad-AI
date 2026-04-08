@@ -65,15 +65,14 @@ def load_configs(evaluate_config_path=None):
 
     inferred_model_key, inferred_exp_name = _infer_run_from_checkpoint_name(model_checkpoint)
     if "model_key" not in run_overrides and inferred_model_key and inferred_model_key != model_key:
-        print(
-            f"Info: overriding model_key from checkpoint name: {model_key} -> {inferred_model_key}"
-        )
         model_key = inferred_model_key
     if "experiment_name" not in run_overrides and inferred_exp_name and inferred_exp_name != exp_name:
-        print(
-            f"Info: overriding experiment_name from checkpoint name: {exp_name} -> {inferred_exp_name}"
-        )
         exp_name = inferred_exp_name
+
+    # Keep downstream logging/metadata consistent with resolved run settings.
+    sft_config["run"]["model_key"] = model_key
+    sft_config["run"]["experiment_name"] = exp_name
+
     exp_config = data_config["experiments"][exp_name]
     model_config = data_config["models"][model_key]
 
