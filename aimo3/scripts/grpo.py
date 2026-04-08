@@ -243,12 +243,29 @@ def load_model_for_grpo(starting_checkpoint, quantization_yaml):
     if quantization_config is not None:
         model_kwargs["quantization_config"] = quantization_config
     else:
-        model_kwargs["torch_dtype"] = torch.bfloat16 if torch.cuda.is_available() else torch.float32
+        model_kwargs["dtype"] = torch.bfloat16 if torch.cuda.is_available() else torch.float32
 
-    model = AutoModelForCausalLM.from_pretrained(
-        starting_checkpoint,
-        **model_kwargs,
-    )
+    try:
+        model = AutoModelForCausalLM.from_pretrained(
+            starting_checkpoint,
+            **model_kwargs,
+        )
+    except RuntimeError as err:
+        # Some PEFT checkpoints include resized vocab tensors that can mismatch
+        # the current base model size. Retry with mismatch-tolerant loading.
+        err_text = str(err)
+        if "ignore_mismatched_sizes" not in err_text and "mismatched" not in err_text.lower():
+            raise
+
+        print(
+            "Warning: checkpoint load had shape mismatches. "
+            "Retrying with ignore_mismatched_sizes=True."
+        )
+        model = AutoModelForCausalLM.from_pretrained(
+            starting_checkpoint,
+            ignore_mismatched_sizes=True,
+            **model_kwargs,
+        )
 
     if quantization_config is not None:
         model = prepare_model_for_kbit_training(model)
