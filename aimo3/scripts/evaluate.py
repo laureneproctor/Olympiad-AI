@@ -22,6 +22,18 @@ except ImportError:
 # ---------------------------
 # YAML loading
 # ---------------------------
+def _infer_run_from_checkpoint_name(model_checkpoint: str):
+    """Infer (model_key, experiment_name) from checkpoint basename when possible."""
+    if not model_checkpoint:
+        return None, None
+
+    basename = os.path.basename(str(model_checkpoint).rstrip("/"))
+    match = re.match(r"^(?:sft|grpo)_([a-zA-Z0-9_]+)_(exp\d+)$", basename)
+    if not match:
+        return None, None
+    return match.group(1), match.group(2)
+
+
 def load_configs(evaluate_config_path=None):
     """Load and resolve evaluation, data, SFT, and model configs."""
     if evaluate_config_path is None:
@@ -39,8 +51,29 @@ def load_configs(evaluate_config_path=None):
         sft_config_path = helpers.get_config_path("sft.yaml")
     sft_config = helpers.load_yaml(sft_config_path)
 
-    exp_name = sft_config["run"]["experiment_name"]
-    model_key = sft_config["run"]["model_key"]
+    # Resolve checkpoint path early so we can infer run metadata if needed.
+    model_checkpoint = evaluate_config.get("paths", {}).get("model_checkpoint")
+    if not model_checkpoint:
+        model_checkpoint = os.path.join(
+            sft_config["paths"]["output_root"],
+            f"sft_{sft_config['run']['model_key']}_{sft_config['run']['experiment_name']}",
+        )
+
+    run_overrides = evaluate_config.get("run", {})
+    exp_name = run_overrides.get("experiment_name", sft_config["run"]["experiment_name"])
+    model_key = run_overrides.get("model_key", sft_config["run"]["model_key"])
+
+    inferred_model_key, inferred_exp_name = _infer_run_from_checkpoint_name(model_checkpoint)
+    if "model_key" not in run_overrides and inferred_model_key and inferred_model_key != model_key:
+        print(
+            f"Info: overriding model_key from checkpoint name: {model_key} -> {inferred_model_key}"
+        )
+        model_key = inferred_model_key
+    if "experiment_name" not in run_overrides and inferred_exp_name and inferred_exp_name != exp_name:
+        print(
+            f"Info: overriding experiment_name from checkpoint name: {exp_name} -> {inferred_exp_name}"
+        )
+        exp_name = inferred_exp_name
     exp_config = data_config["experiments"][exp_name]
     model_config = data_config["models"][model_key]
 
@@ -51,13 +84,6 @@ def load_configs(evaluate_config_path=None):
             "splits",
             exp_name,
             str(exp_config["N"]),
-        )
-
-    model_checkpoint = evaluate_config.get("paths", {}).get("model_checkpoint")
-    if not model_checkpoint:
-        model_checkpoint = os.path.join(
-            sft_config["paths"]["output_root"],
-            f"sft_{model_key}_{exp_name}",
         )
 
     output_dir = evaluate_config.get("paths", {}).get("output_dir", "runs/evaluation")
