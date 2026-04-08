@@ -18,8 +18,27 @@ import yaml
 from datasets import load_from_disk
 from peft import LoraConfig, prepare_model_for_kbit_training
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
-from trl import GRPOConfig, GRPOTrainer
 from . import helpers
+
+
+def _import_grpo_trl_objects():
+    """
+    Import GRPO objects from TRL lazily so module import does not fail
+    immediately when TRL/Transformers versions are mismatched.
+    """
+    try:
+        from trl import GRPOConfig, GRPOTrainer
+        return GRPOConfig, GRPOTrainer
+    except Exception as err:
+        raise ImportError(
+            "Failed to import TRL GRPO classes. This is usually caused by an "
+            "incompatible trl/transformers/peft/accelerate combination in the "
+            "runtime environment. In Colab, reinstall compatible versions and "
+            "restart runtime, for example: pip install -U --force-reinstall "
+            "'transformers>=4.52,<4.58' 'trl>=0.12.2' 'peft>=0.16.0' "
+            "'accelerate>=0.34' 'huggingface_hub>=0.24,<1.0'. "
+            f"Original error: {err}"
+        ) from err
 
 # ------------------------------------------------------------------------------
 # Config loading
@@ -245,11 +264,29 @@ def load_model_for_grpo(starting_checkpoint, quantization_yaml):
     else:
         model_kwargs["dtype"] = torch.bfloat16 if torch.cuda.is_available() else torch.float32
 
+    def _load_with_kwargs(extra_kwargs=None):
+        kwargs = dict(model_kwargs)
+        if extra_kwargs:
+            kwargs.update(extra_kwargs)
+
+        # Newer Transformers prefers `dtype`; older versions require `torch_dtype`.
+        try:
+            return AutoModelForCausalLM.from_pretrained(
+                starting_checkpoint,
+                **kwargs,
+            )
+        except TypeError as err:
+            if "dtype" not in kwargs or "unexpected keyword" not in str(err).lower():
+                raise
+            fallback_kwargs = dict(kwargs)
+            fallback_kwargs["torch_dtype"] = fallback_kwargs.pop("dtype")
+            return AutoModelForCausalLM.from_pretrained(
+                starting_checkpoint,
+                **fallback_kwargs,
+            )
+
     try:
-        model = AutoModelForCausalLM.from_pretrained(
-            starting_checkpoint,
-            **model_kwargs,
-        )
+        model = _load_with_kwargs()
     except RuntimeError as err:
         # Some PEFT checkpoints include resized vocab tensors that can mismatch
         # the current base model size. Retry with mismatch-tolerant loading.
@@ -261,11 +298,7 @@ def load_model_for_grpo(starting_checkpoint, quantization_yaml):
             "Warning: checkpoint load had shape mismatches. "
             "Retrying with ignore_mismatched_sizes=True."
         )
-        model = AutoModelForCausalLM.from_pretrained(
-            starting_checkpoint,
-            ignore_mismatched_sizes=True,
-            **model_kwargs,
-        )
+        model = _load_with_kwargs({"ignore_mismatched_sizes": True})
 
     if quantization_config is not None:
         model = prepare_model_for_kbit_training(model)
@@ -426,6 +459,7 @@ def build_grpo_training_config(training_yaml, output_directory):
     This configuration object will be used to set up the GRPOTrainer for training the model with the specified hyperparameters and settings.
     """
     import inspect
+    GRPOConfig, _ = _import_grpo_trl_objects()
 
     config_kwargs = {
         "output_dir": output_directory,
@@ -540,6 +574,7 @@ def build_trainer(model, tokenizer, peft_config, train_dataset, trainer_config):
     This trainer can be used to start the GRPO training.
     """
     reward_funcs = build_reward_functions()
+    _, GRPOTrainer = _import_grpo_trl_objects()
 
     trainer = GRPOTrainer(
         model=model,
