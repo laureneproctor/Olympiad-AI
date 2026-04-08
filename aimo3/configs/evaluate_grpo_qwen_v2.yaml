@@ -1,12 +1,20 @@
+# Define evaluation runs
+# - Which model to evaluate
+# - Which dataset split to evaluate on 
+# - Evaluation limit ( how many items)
+# - maj@N sample count
+# - Generation settings for evaluation
+# - Where to save the report
+
 run:
   seed: 42
 
 paths:
   data_config_path: null
   sft_config_path: "/content/Olympiad-AI/aimo3/configs/sft.yaml"
-  model_checkpoint: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/models/grpo_qwen_exp2"
+  model_checkpoint: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/models/grpo_qwen_exp1"
   dataset_path: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/processed_splits/omr_aimo3/splits/100000"
-  output_dir: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/runs/evaluation_grpo_qwen_exp2_run3"
+  output_dir: "/content/drive/MyDrive/Math Olympiad Competition/Experimentation/runs/evaluation_grpo_qwen_exp1"
 
 evaluation:
   split: "test"
@@ -22,5 +30,5 @@ evaluation:
 
 reporting:
   save_report: true
-  report_filename: "evaluation_report_grpo_qwen_exp2_run3.json"
+  report_filename: "evaluation_report_grpo_qwen_exp1.json"
   verbose: true
