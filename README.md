@@ -1,50 +1,88 @@
+
 ## Olympiad-AI
 Building a system that parses LaTeX- formatted math problems and uses a model to solve math olympiad-level questions.
 
 ## Time-line
-<img width="1081" height="423" alt="Screenshot 2026-03-17 at 1 09 17 PM" src="https://github.com/user-attachments/assets/e63f1332-1763-462e-9915-a14a19b798ea" />
+<img width="785" height="289" alt="Screenshot 2026-04-16 at 4 34 16 PM" src="https://github.com/user-attachments/assets/32c498d9-7fe0-4eb8-8df2-17dae0ee8e61" />
 
 ## Project Structure
 
-```
 Olympiad-AI/
 ├── aimo3/
 │   ├── configs/
+│   │   ├── old_configs/
 │   │   ├── data.yaml
-│   │   ├── evaluate.yaml
-│   │   ├── grpo.yaml
-│   │   ├── mine.yaml
+│   │   ├── evaluate_grpo_deepseek*.yaml
+│   │   ├── evaluate_grpo_qwen*.yaml
+│   │   ├── evaluate_sft_deepseek*.yaml
+│   │   ├── evaluate_sft_qwen*.yaml
+│   │   ├── grpo_baseline_deepseek*.yaml
+│   │   ├── grpo_baseline_qwen*.yaml
+│   │   ├── grpo_deepseekmath*.yaml
+│   │   ├── grpo_qwen.yaml
+│   │   ├── grpo_qwen_exp1.yaml
+│   │   ├── grpo_qwen_exp3.yaml
+│   │   ├── large_grpo_qwen_v2*.yaml
+│   │   ├── large_mine_qwen_v2*.yaml
+│   │   ├── mine_baseline_deepseek*.yaml
+│   │   ├── mine_baseline_qwen*.yaml
+│   │   ├── mine_deepseekmath*.yaml
+│   │   ├── mine_qwen.yaml
+│   │   ├── mine_qwen_exp1.yaml
+│   │   ├── mine_qwen_exp3.yaml
+│   │   ├── sft_deepseekmath.yaml
+│   │   ├── sft_qwen.yaml
 │   │   ├── sft.yaml
 │   │   └── solve.yaml
+│   │
+│   ├── extras/
+│   │   ├── Baseline_GRPO_Pipeline*
+│   │   └── Baseline_Models_Eval*
 │   │
 │   ├── scripts/
 │   │   ├── __init__.py
 │   │   ├── evaluate.py
 │   │   ├── grpo.py
+│   │   ├── grpo_baseline.py
+│   │   ├── helpers.py
 │   │   ├── mine.py
+│   │   ├── mine_baseline.py
+│   │   ├── optuna_tune_sft.py
 │   │   ├── prepare.py
 │   │   ├── sft.py
-│   │   └── solve.py
+│   │   ├── solve.py
+│   │   └── __init__.py
 │   │
 │   └── __init__.py
 │
-├── data/
 ├── notebooks/
-│   ├── Baseline 1.ipynb
-│   ├── DSM_V2_for_Presentation.ipynb
-│   ├── Final SVSU Parser.ipynb
-│   ├── Olympiad-PDF-Scrape.ipynb
-│   ├── README.md
-│   ├── SVSU Parsing All.ipynb
-│   └── ec-pdf-parser.ipynb
+│   ├── EDA/
+│   │   ├── eda_1.ipynb
+│   │   └── sft_dataset_preview.ipynb
+│   │
+│   ├── Parser Work/
+│   │   ├── ec-pdf-parser.ipynb
+│   │   ├── Final SVSU Parser.ipynb
+│   │   ├── Olympiad-PDF-Scrape.ipynb
+│   │   ├── SVSU Parsing All.ipynb
+│   │   ├── All Evaluation.ipynb
+│   │   ├── demo.ipynb
+│   │   ├── DSM_V2_for_Presentation.ipynb
+│   │   ├── Evaluation_GRPO_Deep*.ipynb
+│   │   ├── Evaluation_GRPO_Qwen*.ipynb
+│   │   ├── GRPO_Execution_Deep*.ipynb
+│   │   ├── GRPO_Execution_Qwen*.ipynb
+│   │   ├── Main Script.ipynb
+│   │   ├── Mine_Execution_Deep*.ipynb
+│   │   ├── Mine_Execution_Qwen*.ipynb
+│   │   └── README.md
 │
+├── data/
 ├── pdf_data/
 │   └── raw_pdfs/
 │
 ├── .gitignore
 └── README.md
-```
-
 ## Full Pipeline
 This repository implements a training pipeline for solving olympiad-style math problems using a combination of Supervised Fine-Tuning (SFT) and Reinforcement Learning with GRPO.
 ```
