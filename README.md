@@ -6,7 +6,7 @@ Building a system that parses LaTeX- formatted math problems and uses a model to
 <img width="785" height="289" alt="Screenshot 2026-04-16 at 4 34 16 PM" src="https://github.com/user-attachments/assets/32c498d9-7fe0-4eb8-8df2-17dae0ee8e61" />
 
 ## Project Structure
-
+```
 Olympiad-AI/
 ├── aimo3/
 │   ├── configs/
